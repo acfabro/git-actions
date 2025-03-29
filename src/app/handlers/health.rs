@@ -3,6 +3,7 @@ use serde_json::json;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Health check endpoint handler
+#[axum::debug_handler]
 pub async fn health_check() -> impl IntoResponse {
     let uptime = SystemTime::now()
         .duration_since(UNIX_EPOCH)
