@@ -1,0 +1,26 @@
+# Example Bitbucket webhook configuration
+apiVersion: "git-actions/v1"
+kind: Webhook
+metadata:
+  name: "bitbucket-repo-a"  # Unique name for this webhook configuration
+
+spec:
+  path: "/webhook/bitbucket/repo-a"  # URL path for this webhook
+
+  # this webhook config is for receiving events from Bitbucket
+  bitbucket:
+    # (Optional) Environment variable containing the API token. This is used by bitbucket to authenticate with this webhook.
+    tokenFromEnv: "BITBUCKET_MYREPO_TOKEN"
+
+    # API to call back to Bitbucket to get things like changed files, etc
+    api:
+      baseUrl: "https://bitbucket.example.com/rest/api/1.0"
+      project: "PROJ"  # Project key/slug
+      repo: "repo-a"   # Repository name/slug
+      auth:
+        type: "token"  # Authentication type (token, basic)
+        tokenFromEnv: "BITBUCKET_API_TOKEN_A"  # Environment variable containing the API token
+
+  # if this is a github webhook
+  # github:
+  #  # github scpecific config

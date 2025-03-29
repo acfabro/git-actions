@@ -7,9 +7,9 @@ authors = ["Your Name <your.email@example.com>"]
 
 [dependencies]
 # HTTP server
-axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+axum = { version = "0.8.3", features = ["macros"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
 
 # Async runtime
 tokio = { version = "1.28", features = ["full"] }
@@ -22,7 +22,7 @@ tracing-serde = "0.2"
 
 # Error handling
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0.12"
 
 # Logging and tracing
 tracing = "0.1"
@@ -31,4 +31,17 @@ tracing-appender = "0.2"
 
 # Config
 clap = { version = "4.2", features = ["derive"] }
-tempfile = "3.19.0"
+glob = "0.3"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Async utilities
+async-trait = "0.1"
+bitbucket-server-rs = "0.5.1"
+wildmatch = "2.4.0"
+regex = "1.11.1"
+jsonpath-rust = "1.0.1"
+strum = "0.27.1"
+strum_macros = "0.27.1"
+log = "0.4.25"

@@ -1,112 +1,89 @@
 # Git-Actions rules configuration
 apiVersion: "git-actions/v1"
-kind: "RulesConfig"
+kind: Rules
+metadata:
+  name: "default-rules"
 
-# Configuration specification
 spec:
-  # Webhook configurations
-  webhooks:
-    # GitHub webhook endpoint example
-    github_main:
-      path: "/webhook/github"
-      type: "github"
-      secretFromEnv: "GITHUB_SECRET"  # Environment variable containing webhook secret
-      
-    # Additional GitHub endpoint for another repository
-    github_secondary:
-      path: "/webhook/github-secondary"
-      type: "github"
-      secretFromEnv: "GITHUB_SECONDARY_SECRET"
-    
-    # GitLab webhook endpoint
-    gitlab_endpoint:
-      path: "/webhook/gitlab"
-      type: "gitlab"
-      secretFromEnv: "GITLAB_TOKEN"
-    
-    # Bitbucket webhook endpoint
-    bitbucket_endpoint:
-      path: "/webhook/bitbucket"
-      type: "bitbucket"
-      usernameFromEnv: "BB_USERNAME"
-      passwordFromEnv: "BB_PASSWORD"
 
   # Rules for event matching and action execution
   rules:
     # Example rule 1: Docker build on Dockerfile changes
-    - name: "docker-build"
+    "docker-build":
       description: "Trigger Docker build when Dockerfile changes"
+      webhooks:                 # References to WebhookConfig resources by name
+        - "bitbucket-repo-a"
+        - "github-secondary"
       event_types:              # Event types to match
         - "push"
-        - "pull_request.merged"
+        - "pull_request_merged"
       branches:                 # Branch filters (any can match)
         - exact: "main"
         - pattern: "feature/*"
-        - regex: "^release-\d+\.\d+$"
-        - not: "temp/*"
+        - regex: "^release-\\d+\\.\\d+$"
       paths:                    # Path filters (any can match)
         - exact: "Dockerfile"
         - pattern: "docker/**/*"
-        - regex: ".*\.dockerfile$"
-        - not: "**/*.md"
-      conditions:               # Additional conditions (all must be true)
-        - "{{ event.author }} != 'dependabot'"
-        - "{{ event.changed_files.length }} > 0"
+        - regex: ".*\\.dockerfile$"
       actions:                  # Actions to execute when rule matches
         # HTTP action example
-        - type: "http"
-          url: "https://ci-server/api/build"
-          method: "POST"
-          headers:
-            Content-Type: "application/json"
-            Authorization: "Bearer {{ env.CI_API_TOKEN }}"
-          payload:
-            repository: "{{ event.repository }}"
-            branch: "{{ event.branch }}"
-            files: "{{ event.changed_files }}"
-          timeout: 30           # Seconds before timeout
-            
+        - http:
+            url: "https://ci-server/api/build"
+            method: "POST"
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ env.CI_API_TOKEN }}"
+            body: |
+              {
+                "repository": "{{ event.payload.repository.name }}",
+                "branch": "{{ event.branch }}",
+                "files": {{ event.changed_files | json_encode() }}
+              }
+
         # Shell command action example
-        - type: "shell"
-          command: "docker build -t myapp:{{ event.branch }} ."
-          working_dir: "/path/to/repo"
-          environment:
-            API_KEY: "{{ env.API_KEY }}"
-            DEBUG: "true"
-          timeout: 300          # Seconds before timeout
+        - shell:
+            command: "docker build -t myapp:{{ event.branch }} ."
+            working_dir: "/path/to/repo"
+            environment:
+              API_KEY: "{{ env.API_KEY }}"
+              DEBUG: "true"
 
     # Example rule 2: Run tests on PR creation
-    - name: "pr-tests"
+    "pr-tests":
       description: "Run tests when a PR is created or updated"
+      webhooks:
+        - "github-main"
       event_types:
-        - "pull_request.opened"
-        - "pull_request.updated"
-      conditions:
-        - "{{ event.labels }} contains 'needs-testing'"
+        - "pull_request_opened"
+        - "pull_request_updated"
       actions:
-        - type: "shell"
-          command: "npm test"
-          working_dir: "./app"
+        - shell:
+            command: "npm test"
+            working_dir: "./app"
 
     # Example rule 3: Service-specific deployment for monorepo
-    - name: "frontend-deploy"
+    "frontend-deploy":
       description: "Deploy frontend when changes are made to frontend code"
+      webhooks:
+        - "bitbucket-repo-a"
       event_types:
         - "push"
       branches:
         - exact: "main"
       paths:
         - pattern: "frontend/**/*"
-      webhook: "github_main"  # Optional: specify which webhook this rule applies to
       actions:
-        - type: "shell"
-          command: "cd frontend && npm run deploy"
-          environment:
-            DEPLOY_TOKEN: "{{ env.FRONTEND_DEPLOY_TOKEN }}"
+        - shell:
+            command: "cd frontend && npm run deploy"
+            environment:
+              DEPLOY_TOKEN: "{{ env.FRONTEND_DEPLOY_TOKEN }}"
 
     # Example rule 4: Monorepo microservice build
-    - name: "microservice-build"
+    "microservice-build":
       description: "Build specific microservice when its code changes"
+      webhooks:
+        - "github-main"
+        - "gitlab-endpoint"
       event_types:
         - "push"
       branches:
@@ -115,12 +92,14 @@ spec:
       paths:
         - pattern: "services/user-service/**/*"
       actions:
-        - type: "shell"
-          command: "cd services/user-service && make build"
-        - type: "http"
-          url: "https://ci-server/api/notify"
-          method: "POST"
-          payload:
-            service: "user-service"
-            status: "building"
-            commit: "{{ event.commit_hash }}"
+        - shell:
+            command: "cd services/user-service && make build"
+        - http:
+            url: "https://ci-server/api/notify"
+            method: "POST"
+            body: |
+              {
+                "service": "user-service",
+                "status": "building",
+                "commit": "{{ event.payload.commit.hash }}"
+              }
