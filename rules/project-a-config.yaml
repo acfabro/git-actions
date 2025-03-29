@@ -5,19 +5,20 @@ kind: RulesConfig
 # Configuration specification
 spec:
   webhooks:
-    - path: "/github"
+    default:
+      path: "/bitbucket1"
       type: "bitbucket"
       secretFromEnv: "GITHUB_SECRET"
   
   rules:
     # Example rule: Run tests on PR creation
-    - name: "run-tests"
+    "run-tests":
       description: "Run tests when a PR is created or updated"
       # (optional) Array of event types to match. If not specified the rule will match all even types.
       event_types:
         # Event type as string
-        - "pull_request-opened"
-        - "pull_request-updated"
+        - "pull_request_opened"
+        - "pull_request_updated"
       # (optional) Array of branch filters to match. If not specified the rule will match all branches.
       branches:
         # `exact` means the branch name must match exactly
@@ -66,10 +67,10 @@ spec:
             working_dir: "./projects"
     
     # Another example rule: Deploy on merge to main
-    - name: "deploy-main"
+    "deploy-main":
       description: "Deploy when changes are merged to main"
       event_types:
-        - "pull_request.merged"
+        - "pull_request_merged"
       branches:
         - exact: "main"
       actions:

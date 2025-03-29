@@ -1,8 +1,10 @@
 use crate::config::server_config::LoggingSpec;
 use anyhow::Result;
 use std::path::Path;
+use tracing::info;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::fmt::SubscriberBuilder;
 
 /// Sets up logging based on the server configuration
 pub fn setup(config: &Option<LoggingSpec>) -> Result<()> {
@@ -47,7 +49,8 @@ pub fn setup(config: &Option<LoggingSpec>) -> Result<()> {
             tracing::subscriber::set_global_default(subscriber.finish())?;
         }
 
-        tracing::info!("Logging to file: {}", file_path.display());
+        info!("Logging to file: {}", file_path.display());
+
     } else {
         // Log to stdout
         if format_str == "json" {
@@ -58,6 +61,6 @@ pub fn setup(config: &Option<LoggingSpec>) -> Result<()> {
         }
     }
 
-    tracing::info!("Logging initialized with level: {}, format: {}", level_str, format_str);
+    info!("Logging initialized with level: {}, format: {}", level_str, format_str);
     Ok(())
 }

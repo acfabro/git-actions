@@ -64,15 +64,6 @@ pub struct LoggingSpec {
     pub file: Option<PathBuf>,
 }
 
-impl LoggingSpec {
-    fn level(&self) -> String {
-        self.level.clone().unwrap_or(Self::default().level.unwrap())
-    }
-    fn format(&self) -> String {
-        self.format.clone().unwrap_or(Self::default().format.unwrap())
-    }
-}
-
 impl Default for LoggingSpec {
     fn default() -> Self {
         Self {

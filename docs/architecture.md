@@ -29,37 +29,37 @@ graph TD
    - Routes requests to appropriate handlers
    - Implements health check and metrics endpoints
 
-2. **Event Processing Layer**
-   - Parses raw webhook payloads from different Git providers
-   - Normalizes events into a common internal representation
-   - Extracts relevant metadata (branch, commit, files changed, etc.)
-   - Provides platform-specific adapters. **Currently, only Bitbucket Data Center/Server is implemented.** Support for GitHub and GitLab webhooks is planned for future releases.
+2. **Event Processing Layer (V1 Scope: Bitbucket Only)**
+   - Parses raw webhook payloads from **Bitbucket Data Center/Server**.
+   - Normalizes Bitbucket events into a common internal representation.
+   - Extracts relevant metadata (branch, commit, files changed, etc.).
+   - **Note:** Support for GitHub, GitLab, and Bitbucket Cloud is deferred beyond V1.
 
-3. **Rule Matching Layer**
-   - Evaluates events against defined rules
-   - Applies branch filters to determine if the event branch matches rule criteria
-   - Applies path filters to check if changed files match rule patterns
-   - Evaluates conditional expressions using event data
-   - Determines which rules should trigger actions
+3. **Rule Matching Layer (V1 Scope: No Conditions)**
+   - Evaluates events against defined rules linked via the `rule.webhooks` field.
+   - Applies branch filters (`exact`, `pattern`, `regex`, `not`).
+   - Applies path filters (`exact`, `pattern`, `regex`, `not`).
+   - **Note:** Evaluation of the `rule.conditions` field using Tera is **deferred** in V1. Rules match based solely on webhook source, event type, branch filters, and path filters.
+   - Determines which rules should trigger actions.
 
-4. **Action Execution Layer**
-   - Executes actions for matched rules
-   - Performs variable substitution in action parameters
-   - Handles HTTP requests for HTTP actions
-   - Executes shell commands for shell actions
-   - Manages timeouts and retries
-   - Captures and processes action results
+4. **Action Execution Layer (V1 Scope: Simple Sequential)**
+   - Executes actions sequentially for matched rules. If an action fails or times out, subsequent actions for that rule are skipped.
+   - Performs variable substitution in action parameters using the **Tera templating engine**.
+   - Handles asynchronous execution of HTTP actions (`http:`).
+   - Handles asynchronous execution of shell commands (`shell:`). **Caution:** Users must ensure safe templating practices to avoid command injection vulnerabilities.
+   - Enforces a **universal, hardcoded default timeout** for all actions.
+   - **Note:** Advanced action chaining (conditionals, data passing) and error handling (retries, fallbacks) are deferred beyond V1. Per-action timeouts are also deferred.
 
 5. **Configuration Layer**
-   - Loads and parses YAML configuration files
-   - Validates configuration against schema
-   - Provides access to configuration data throughout the system
-   - Handles environment variable substitution in configuration
+   - Loads and parses YAML configuration files (`ServerConfig`, `RulesConfig`) following the defined schema (apiVersion/kind/spec structure).
+   - Validates configuration structure.
+   - Provides access to configuration data throughout the system.
+   - Relies on environment variables for secrets (`secretFromEnv`, `env.*` in Tera).
 
 ### 1.2 Core Components
 
 ```mermaid
-graph TD
+graph LR
     A[HTTP Webhook Server] --> B[Event Parser]
     B --> C[Rule Matcher]
     C --> D[Action Executor]
@@ -69,13 +69,10 @@ graph TD
     E --> C
     E --> D
     
-    F[GitHub Adapter] --> B
-    G[GitLab Adapter] --> B
     H[Bitbucket Adapter] --> B
     
     C --> I[Branch Filter]
     C --> J[Path Filter]
-    C --> K[Condition Evaluator]
     
     D --> L[HTTP Action Handler]
     D --> M[Shell Command Handler]
@@ -103,62 +100,46 @@ sequenceDiagram
     Executor->>Git: Execute Actions
 ```
 
-#### Detailed Data Flow Description
+#### Detailed Data Flow Description (V1)
 
-1. **Webhook Event Reception**
-   - Git hosting service (GitHub, GitLab, or Bitbucket) sends a webhook event to the HTTP server
-   - The server validates the webhook signature using the configured secret
-   - The raw JSON payload and HTTP headers are captured for processing
+1. **Webhook Event Reception (Bitbucket)**
+   - Bitbucket Data Center/Server sends a webhook event to the HTTP server.
+   - The server validates the webhook signature using the secret specified by `secretFromEnv` for the matching `webhook_id`.
+   - The raw JSON payload and HTTP headers are captured.
 
-2. **Event Parsing and Normalization**
-   - The appropriate event parser is selected based on the webhook source
-   - The parser extracts relevant information from the raw payload:
-     - Event type (push, pull_request, etc.)
-     - Repository information
-     - Branch name
-     - Commit details
-     - Changed files
-     - Author information
-   - The extracted data is normalized into a common internal `Event` structure
+2. **Event Parsing and Normalization (Bitbucket)**
+   - The Bitbucket event parser extracts relevant information (event type, repo, branch, files, etc.).
+   - Data is normalized into the internal `Event` structure.
 
-3. **Rule Matching Process**
-   - The rule matcher evaluates the normalized event against all defined rules
-   - For each rule, the following checks are performed:
-     - Event type matching: Does the event type match any in the rule's `event_types` list?
-     - Branch filtering: Does the event's branch match any of the rule's branch patterns?
-     - Path filtering: Do any of the changed files match the rule's path patterns?
-     - Condition evaluation: Do all additional conditions evaluate to true?
-   - Rules that pass all checks are collected for action execution
+3. **Rule Matching Process (V1 - No Conditions)**
+   - The rule matcher evaluates the normalized event against defined rules.
+   - For each rule, checks are performed:
+     - Webhook Match: Does the rule's `webhooks` array contain the ID of the source webhook?
+     - Event Type Match: Does the event type match the rule's `event_types`?
+     - Branch Filter Match: Does the event's branch match the rule's `branches` filters?
+     - Path Filter Match: Do changed files match the rule's `paths` filters?
+     - **Note:** The `conditions` field is ignored in V1.
+   - Rules passing all checks are collected.
 
-4. **Action Execution**
-   - For each matched rule, the associated actions are executed in sequence
-   - Before execution, variable substitution is performed:
-     - Event data is injected into action parameters
-     - Environment variables are resolved
-     - Template expressions are evaluated
-   - For HTTP actions:
-     - The URL is constructed with variables substituted
-     - Headers are prepared with authentication if needed
-     - The HTTP request is made with the specified method and payload
-     - Response is captured and logged
-   - For shell actions:
-     - The command is constructed with variables substituted
-     - The working directory is set
-     - Environment variables are configured
-     - The command is executed in a subprocess
-     - Output is captured and logged
+4. **Action Execution (V1 - Simple Sequential)**
+   - For each matched rule, the associated actions are executed **sequentially** and **asynchronously**.
+   - Before execution, variable substitution is performed using the **Tera template engine** (`{{ event.* }}`, `{{ env.* }}`).
+   - Actions are subject to a universal, hardcoded default timeout.
+   - For HTTP actions (`http:`): Async request is made.
+   - For Shell actions (`shell:`): Command is executed asynchronously (typically via `sh -c "..."` or similar).
+   - Output/results are captured for logging.
 
-5. **Result Handling**
-   - Action results are logged for monitoring
-   - Errors are handled according to the configured error handling strategy
-   - Metrics are updated for monitoring and reporting
+5. **Result Handling (V1 - Simple)**
+   - Action results (success/failure/timeout) are logged.
+   - If any action in a sequence fails or times out, execution for that rule **stops**. Subsequent actions are skipped.
+   - Metrics (`/metrics` endpoint) are updated.
 
 ## 2. Module Structure
 
 The codebase is organized into the following module structure:
 
 ```mermaid
-graph TD
+graph LR
     main[main.rs] --> server[server/mod.rs]
     main --> config[config/mod.rs]
     main --> event[event/mod.rs]
@@ -173,14 +154,11 @@ graph TD
     config --> config_types[config/types.rs]
     
     event --> event_parser[event/parser.rs]
-    event --> event_github[event/github.rs]
-    event --> event_gitlab[event/gitlab.rs]
     event --> event_bitbucket[event/bitbucket.rs]
     event --> event_types[event/types.rs]
     
     rule --> rule_matcher[rule/matcher.rs]
     rule --> rule_filter[rule/filter.rs]
-    rule --> rule_condition[rule/condition.rs]
     rule --> rule_types[rule/types.rs]
     
     action --> action_executor[action/executor.rs]
@@ -213,30 +191,30 @@ graph TD
 - **`types.rs`**: Configuration data structures
 
 #### 2.1.4 Event Module (`event/`)
-- **`mod.rs`**: Event module entry point
-- **`parser.rs`**: Generic event parsing logic
-- **`bitbucket.rs`**: Bitbucket-specific event parsing (**Note:** Currently supports Bitbucket Data Center/Server, not Bitbucket Cloud).
-- **`types.rs`**: Event data structures
-- **Note:** GitHub and GitLab specific parsing (`github.rs`, `gitlab.rs`) are planned for future implementation.
+- **`mod.rs`**: Event module entry point.
+- **`parser.rs`**: Defines traits for event parsing.
+- **`bitbucket.rs`**: V1 implementation for Bitbucket Data Center/Server parsing.
+- **`types.rs`**: Common event data structures.
+- **Note:** `github.rs`, `gitlab.rs` are placeholders for future provider support.
 
 #### 2.1.5 Rule Module (`rule/`)
-- **`mod.rs`**: Rule module entry point
-- **`matcher.rs`**: Rule matching logic
-- **`filter.rs`**: Branch and path filtering
-- **`condition.rs`**: Condition evaluation
-- **`types.rs`**: Rule data structures
+- **`mod.rs`**: Rule module entry point.
+- **`matcher.rs`**: Implements rule matching logic based on webhook source, event type, branch, and path filters.
+- **`filter.rs`**: Contains logic for `exact`, `pattern`, `regex`, `not` filters.
+- **`condition.rs`**: Placeholder for condition evaluation logic (deferred in V1).
+- **`types.rs`**: Rule data structures (matching config schema).
 
 #### 2.1.6 Action Module (`action/`)
-- **`mod.rs`**: Action module entry point
-- **`executor.rs`**: Action execution orchestration
-- **`http.rs`**: HTTP action implementation
-- **`shell.rs`**: Shell command action implementation
-- **`types.rs`**: Action data structures
+- **`mod.rs`**: Action module entry point.
+- **`executor.rs`**: Orchestrates V1 action execution: asynchronous, sequential per rule, stops on error/timeout, applies universal timeout.
+- **`http.rs`**: Implements the `http:` action using an async HTTP client.
+- **`shell.rs`**: Implements the `shell:` action using async process execution. Must handle timeout enforcement and capture results. Security considerations are paramount here.
+- **`types.rs`**: Action data structures (matching config schema).
 
 #### 2.1.7 Template Module (`template/`)
-- **`mod.rs`**: Template module entry point
-- **`engine.rs`**: Tera template engine integration
-- **`context.rs`**: Template context building
+- **`mod.rs`**: Template module entry point.
+- **`engine.rs`**: Integrates the **Tera** template engine.
+- **`context.rs`**: Defines and builds the context (`event`, `env`) available during Tera rendering for action parameters.
 
 ### 2.2 Key Interfaces
 

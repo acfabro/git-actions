@@ -52,8 +52,6 @@ pub async fn bitbucket_webhook(
     Ok(StatusCode::OK)
 }
 
-// --- Bitbucket Extraction Helpers ---
-
 fn get_event_type(payload: &Value) -> Result<String, WebhookDataError> {
     payload["eventKey"] // Corrected key based on common Bitbucket payloads
         .as_str()

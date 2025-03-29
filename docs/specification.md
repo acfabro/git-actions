@@ -115,15 +115,15 @@ The tool runs an HTTP server that listens for incoming webhook events from Git h
 
 The tool supports the following primary event types:
 
-| Event Type | Description |
-|------------|-------------|
-| push | Code pushed to a branch |
-| pull_request.opened | New pull request created |
-| pull_request.updated | Pull request updated with new commits |
-| pull_request.merged | Pull request merged into target branch |
-| pull_request.closed | Pull request closed without merging |
-| tag | New tag created |
-| release | New release created |
+| Event Type           | Description |
+|----------------------|-------------|
+| push                 | Code pushed to a branch |
+| pull_request_opened  | New pull request created |
+| pull_request_updated | Pull request updated with new commits |
+| pull_request_merged  | Pull request merged into target branch |
+| pull_request_closed  | Pull request closed without merging |
+| tag                  | New tag created |
+| release              | New release created |
 
 Additional event types can be supported based on the Git hosting service's capabilities.
 
@@ -161,7 +161,7 @@ rules:
   - name: "Docker Build Rule"
     description: "Trigger Docker build when Dockerfile changes"
     event_types:
-      - pull_request.merged
+      - pull_request_merged
     branches:
       - pattern: "feature/*"
       - exact: "main"

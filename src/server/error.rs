@@ -1,4 +1,4 @@
-<![CDATA[use axum::{
+use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -71,4 +71,3 @@ impl From<WebhookDataError> for WebhookError {
         WebhookError::PayloadError(err.to_string())
     }
 }
-]]>

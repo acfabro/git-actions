@@ -1,36 +1,37 @@
-<![CDATA[pub mod error;
+pub mod error;
 pub mod handlers;
 pub mod router;
 pub mod server;
 
-use crate::config::{BranchFilter, PathFilter, Rule, RulesConfig, ServerConfig}; // Added imports
-use anyhow::Result;
-use serde_json::Value; // Added import
-use std::collections::HashMap; // Added import
-use std::sync::Arc; // Added import
-use tracing::info;
+use crate::config::{rules_config::{BranchFilter, PathFilter, Rule}, RulesConfig, ServerConfig};
+use crate::logging;
+use anyhow::{Context, Result};
+use serde_json::Value;
 use server::Server;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tracing::{debug, info};
 
 /// Application state shared across request handlers
 #[derive(Clone)]
 pub struct AppState {
-    pub rule_matcher: Arc<RuleMatcher>, // Updated AppState
+    pub rule_matcher: Arc<RuleMatcher>,
 }
 
 /// RuleMatcher service for finding and executing rules
 pub struct RuleMatcher {
     // Map webhook paths directly to their applicable rules
-    path_to_rules: HashMap<String, Vec<Rule>>,
+    path_to_rules: HashMap<String, HashMap<String, Rule>>,
 }
 
 impl RuleMatcher {
     /// Create a new RuleMatcher from loaded configurations
-    pub fn new(rule_configs: Vec<RulesConfig>) -> Self {
+    pub fn new(rule_configs: &Vec<RulesConfig>) -> Self {
         let mut path_to_rules = HashMap::new();
 
         for config in rule_configs {
             // For each webhook in this config
-            for webhook in &config.spec.webhooks {
+            for (_, webhook) in &config.spec.webhooks {
                 // Map this webhook path to the rules in this config
                 path_to_rules.insert(webhook.path.clone(), config.spec.rules.clone());
             }
@@ -40,15 +41,15 @@ impl RuleMatcher {
     }
 
     /// Get all rules associated with a specific webhook path
-    pub fn get_rules_for_path(&self, path: &str) -> Option<&Vec<Rule>> {
+    pub fn get_rules_for_path(&self, path: &str) -> Option<&HashMap<String, Rule>> {
         self.path_to_rules.get(path)
     }
 
     /// Find rules that match the given criteria for a specific webhook path
-    pub fn find_matching_rules(&self, path: &str, event_type: &str, branch: &str, paths: &[String]) -> Vec<&Rule> {
+    pub fn find_matching_rules(&self, path: &str, event_type: &str, branch: &str, paths: &[String]) -> Vec<(&String, &Rule)> {
         if let Some(rules) = self.get_rules_for_path(path) {
             return rules.iter()
-                .filter(|rule| {
+                .filter(|(_rule_name, rule)| {
                     // Match event type (if specified)
                     if let Some(event_types) = &rule.event_types {
                         if !event_types.contains(&event_type.to_string()) {
@@ -101,9 +102,9 @@ impl RuleMatcher {
     }
 
     /// Execute actions for the given matching rules
-    pub fn execute_actions(&self, rules: Vec<&Rule>, payload: &Value) -> Result<(), anyhow::Error> {
-        for rule in rules {
-            tracing::info!("Executing actions for rule: {}", rule.name);
+    pub fn execute_actions(&self, rules: Vec<(&String, &Rule)>, _payload: &Value) -> Result<(), anyhow::Error> {
+        for (rule_name, rule) in rules {
+            tracing::info!("Executing actions for rule: {}", rule_name);
             for action in &rule.actions {
                 // Execute action based on type
                 if let Some(http) = &action.http {
@@ -123,7 +124,7 @@ impl RuleMatcher {
 // Helper functions for pattern and regex matching (placeholders)
 // TODO: Implement proper pattern and regex matching using crates like `globset` and `regex`
 fn matches_pattern(value: &str, pattern: &str) -> bool {
-    tracing::debug!("Matching pattern: value='{}', pattern='{}'", value, pattern);
+    debug!("Matching pattern: value='{}', pattern='{}'", value, pattern);
     // Placeholder implementation
     if pattern.ends_with('*') {
         value.starts_with(&pattern[..pattern.len() - 1])
@@ -133,7 +134,7 @@ fn matches_pattern(value: &str, pattern: &str) -> bool {
 }
 
 fn matches_regex(value: &str, regex_str: &str) -> bool {
-    tracing::debug!("Matching regex: value='{}', regex='{}'", value, regex_str);
+    debug!("Matching regex: value='{}', regex='{}'", value, regex_str);
     // Placeholder implementation using basic contains for now
     value.contains(regex_str)
     // In a real implementation, use the regex crate:
@@ -149,12 +150,9 @@ fn matches_regex(value: &str, regex_str: &str) -> bool {
 
 /// Run the HTTP server with the given configuration
 pub async fn run(config: ServerConfig) -> Result<()> {
-    // Log server configuration details
-    info!(
-        "Server will listen on {}:{}",
-        config.spec.host,
-        config.spec.port
-    );
+    // Set up logging based on configuration
+    logging::setup(&config.spec.logging)
+        .with_context(|| "Failed to setup logging")?;
 
     // Create HTTP server
     let mut server = Server::new(&config);
@@ -165,15 +163,7 @@ pub async fn run(config: ServerConfig) -> Result<()> {
         }
     }
 
-    if let Some(rule_configs) = &config.spec.rule_configs {
-        info!("Rule configuration files:");
-        for rule_config in rule_configs {
-            info!("- {}", rule_config);
-        }
-    }
-
-    server.run().await?;
+    server.start().await?;
 
     Ok(())
 }
-]]>

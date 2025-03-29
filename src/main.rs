@@ -2,7 +2,6 @@ mod config;
 mod logging;
 mod server;
 
-use anyhow::Context;
 use clap::Parser;
 use config::ServerConfig;
 use std::path::PathBuf;
@@ -22,13 +21,9 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     // Load server configuration
-    let config_path = args.config;
-    let config = ServerConfig::from_file(&config_path)?;
+    let config = ServerConfig::from_file(&args.config)?;
 
-    // Set up logging based on configuration
-    logging::setup(&config.spec.logging)
-        .with_context(|| format!("Failed to setup logging for {}", config_path.display()))?;
-
+    // run the server
     server::run(config).await?;
 
     Ok(())

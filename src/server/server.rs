@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-use super::AppState;
-use crate::config::ServerConfig;
+use super::{handlers, AppState, RuleMatcher};
+use crate::config::{RulesConfig, ServerConfig};
 use crate::server::router;
+use axum::{routing::get, Router};
 use std::sync::Arc;
 use tokio::signal;
 use tracing::info;
@@ -21,13 +23,8 @@ impl Server {
         }
     }
 
-    /// Run the HTTP server
-    pub async fn run(&mut self) -> Result<()> {
-        // Create router (which includes state creation)
-        // Use ? to handle potential errors from create_router
-        let router = router::create_router(&self.config)?;
-
-        // Build the server
+    /// Start the HTTP server
+    pub async fn start(&mut self) -> Result<()> {
         let addr = format!("{}:{}", self.config.spec.host, self.config.spec.port);
         let listener = TcpListener::bind(&addr)
             .await
@@ -35,17 +32,17 @@ impl Server {
 
         info!("Server listening on {}", addr);
 
-        // Run the server with graceful shutdown
+        let router = router::from_server_config(&self.config)?;
         axum::serve(listener, router)
-            .with_graceful_shutdown(Self::shutdown())
+            .with_graceful_shutdown(Self::shutdown_signal())
             .await
-            .with_context(|| "Server error")?;
+            .context("Failed to start server")?;
 
         Ok(())
     }
 
     /// Shutdown the server
-    async fn shutdown() {
+    async fn shutdown_signal() {
         let ctrl_c = async {
             signal::ctrl_c()
                 .await

@@ -5,21 +5,23 @@ kind: RulesConfig
 # Configuration specification
 spec:
   webhooks:
-    - path: "/gitlab-also"
-      type: "gitlab"
+    default:
+      path: "/bitbucket2"
+      type: "bitbucket"
       secretFromEnv: "GITLAB_TOKEN"
-    
-    - path: "/bitbucket"
+
+    extra:
+      path: "/bitbucket"
       type: "bitbucket"
       secretFromEnv: "BITBUCKET_SECRET"
   
   rules:
     # Example rule: Build Docker image on Dockerfile changes
-    - name: "docker-build"
+    "docker-build":
       description: "Build Docker image when Dockerfile changes"
       event_types:
         - "push"
-        - "pull_request.merged"
+        - "pull_request_merged"
       branches:
         - exact: "main"
         - exact: "develop"
@@ -32,11 +34,11 @@ spec:
           working_dir: "./projects"
     
     # Example rule: Run linting on PR
-    - name: "lint-code"
+    "lint-code":
       description: "Run linting when a PR is created or updated"
       event_types:
-        - "pull_request.opened"
-        - "pull_request.updated"
+        - "pull_request_opened"
+        - "pull_request_updated"
       paths:
         - pattern: "project-b/**/*.js"
         - pattern: "project-b/**/*.ts"
