@@ -5,24 +5,29 @@ This directory contains the configuration schema for the Git-Actions tool, which
 ## Directory Structure
 
 - **`server.yaml`**: Server configuration schema for the HTTP listener
-- **`git-actions.yaml`**: Main configuration schema for webhooks and rules
+- **`webhook.yaml`**: Example webhook configuration
+- **`rules.yaml`**: Rules configuration schema
 - **`schema.md`**: Detailed schema documentation with types, descriptions, and examples
 - **`examples/`**: Example configurations for specific use cases
 
 ## Key Features of the Schema
 
-1. **Separation of Concerns**:
-   - Server configuration is separate from webhook and rule definitions
-   - Operational vs. business logic separation
+1. **Kubernetes-Inspired Structure**:
+   - Three main resource types: `ServerConfig`, `WebhookConfig`, and `RulesConfig`
+   - Each resource has `apiVersion`, `kind`, `metadata`, and `spec` sections
+   - Clear separation of concerns between server, webhook endpoints, and rules
 
-2. **Flexible Webhook Configuration**:
-   - Multiple webhooks with different paths and authentication
-   - Support for GitHub, GitLab, and Bitbucket
+2. **Type-Specific Webhook Handlers**:
+   - Each webhook has its own configuration file
+   - Support for different webhook types (Bitbucket, GitHub, etc.) with type-specific sections
+   - Type-specific API configurations for external calls
+   - Flexible authentication options
 
 3. **Powerful Rule Matching**:
    - Event type filtering
    - Branch and path pattern matching
-   - Conditional expressions
+   - Reference to specific webhooks by name
+   - Centralized rule evaluation
 
 4. **Variable Templating**:
    - Uses Tera templating engine (similar to Jinja2/Django)
@@ -31,57 +36,94 @@ This directory contains the configuration schema for the Git-Actions tool, which
 
 ## Configuration Files
 
-### Server Configuration
+### 1. Server Configuration
 
-The `server.yaml` file configures the HTTP server that listens for webhook events. Example:
+The `server.yaml` file configures the HTTP server that listens for webhook events and points to other configuration files:
 
 ```yaml
 # Server configuration for Git-Actions
 apiVersion: "git-actions/v1"
-kind: "ServerConfig"
+kind: Server
+metadata:
+  name: "git-actions-server"
 
-# Server specification
 spec:
   port: 8080
   host: "0.0.0.0"
   tls:
-    enabled: true
+    enabled: false
     cert_file: "/path/to/cert.pem"
     key_file: "/path/to/key.pem"
+  logging:
+    level: "INFO"
+    format: "json"
+    file: "/var/log/git-actions.log"
+  config_files:
+    - "webhooks/*.yaml"  # Load all webhook configurations
+    - "rules.yaml"       # Load rules configuration
 ```
 
-### Webhook and Rules Configuration
+### 2. Webhook Configuration
 
-The `git-actions.yaml` file defines webhook endpoints and the rules that respond to Git events. Example:
+Each webhook has its own configuration file that defines its endpoint, type, and authentication:
+
+```yaml
+# Example Bitbucket webhook configuration
+apiVersion: "git-actions/v1"
+kind: Webhook
+metadata:
+  name: "bitbucket-repo-a"  # Unique name referenced by rules
+
+spec:
+  path: "/webhook/bitbucket/repo-a"  # URL path for this webhook
+  
+  # Webhook type-specific configuration
+  bitbucket:
+    # Environment variable containing the webhook token
+    tokenFromEnv: "BITBUCKET_MYREPO_TOKEN"
+    
+    # API configuration for making calls to Bitbucket API
+    api:
+      baseUrl: "https://bitbucket.example.com/rest/api/1.0"
+      project: "PROJ"
+      repo: "repo-a"
+      auth:
+        type: "token"
+        tokenFromEnv: "BITBUCKET_API_TOKEN_A"
+```
+
+### 3. Rules Configuration
+
+The `rules.yaml` file defines rules that respond to Git events from specific webhooks:
 
 ```yaml
 # Git-Actions rules configuration
 apiVersion: "git-actions/v1"
-kind: "RulesConfig"
+kind: Rules
+metadata:
+  name: "default-rules"
 
-# Configuration specification
 spec:
-  webhooks:
-    github_main:
-      path: "/webhook/github"
-      type: "github"
-      secretFromEnv: "GITHUB_SECRET"
-
   rules:
-    - name: "build-on-push"
+    "build-on-push":
+      description: "Build when code is pushed to main"
+      webhooks: ["bitbucket-repo-a"]  # References webhook by name
       event_types: ["push"]
       branches:
         - exact: "main"
       actions:
-        - type: "shell"
-          command: "make build"
+        - shell:
+            command: "make build"
 ```
 
 ## Examples
 
 The `examples/` directory contains sample configurations for different use cases:
 
-- **monorepo-integration-tests.yaml**: Configuration for running integration tests in a monorepo
+- **server-example.yaml**: Example server configuration
+- **webhook-bitbucket.yaml**: Example Bitbucket webhook configuration
+- **webhook-github.yaml**: Example GitHub webhook configuration
+- **rules-monorepo.yaml**: Example rules for a monorepo setup
 - More examples will be added for other common scenarios
 
 ## Documentation
@@ -96,4 +138,6 @@ For detailed information about all configuration options, refer to `schema.md` w
 
 - Text templating is provided by the [Tera](https://keats.github.io/tera/) crate
 - Variable substitution uses double curly braces: `{{ variable }}`
+- Event data is accessed with the `event` prefix: `{{ event.branch }}`
+- Original payload data is available at `{{ event.payload }}`
 - Environment variables are accessed with the `env` prefix: `{{ env.MY_VAR }}`

@@ -1,53 +1,41 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::config::common::{ApiVersion, Metadata};
+use crate::config::webhook_config::ConfigKind;
+
 /// Rules configuration for Git-Actions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RulesConfig {
     /// API version of the configuration
     #[serde(rename = "apiVersion")]
-    pub api_version: String,
+    pub api_version: ApiVersion,
     
     /// Kind of the configuration
-    pub kind: String,
+    pub kind: ConfigKind,
+    
+    /// Metadata for the configuration
+    pub metadata: Metadata,
     
     /// Configuration specification
-    pub spec: Spec,
+    pub spec: RulesSpec,
 }
 
-/// Configuration specification
+/// Rules specification
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Spec {
-    /// Webhook configurations
-    pub webhooks: Vec<Webhook>,
-    
-    /// Rules configurations
-    pub rules: Vec<Rule>,
-}
-
-/// Webhook configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Webhook {
-    /// Path of the webhook
-    pub path: String,
-    
-    /// Type of the webhook
-    #[serde(rename = "type")]
-    pub webhook_type: String,
-    
-    /// Environment variable name containing the webhook secret
-    #[serde(rename = "secretFromEnv")]
-    pub secret_from_env: String,
+pub struct RulesSpec {
+    /// Rules configurations - hashmap with rule name as key
+    pub rules: HashMap<String, Rule>,
 }
 
 /// Rule configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Rule {
-    /// Name of the rule
-    pub name: String,
-    
     /// Description of the rule
     pub description: Option<String>,
+    
+    /// Webhooks this rule applies to
+    pub webhooks: Vec<String>,
     
     /// Event types to match
     #[serde(rename = "event_types")]
@@ -75,6 +63,9 @@ pub enum BranchFilter {
     
     /// Regex branch name match
     Regex { regex: String },
+
+    // TODO: Implement negation logic
+    // Not { not: String },
 }
 
 /// Path filter
@@ -89,6 +80,9 @@ pub enum PathFilter {
     
     /// Regex path match
     Regex { regex: String },
+
+    // TODO: Implement negation logic
+    // Not { not: String },
 }
 
 /// Action configuration
@@ -131,30 +125,31 @@ pub struct ShellAction {
 mod tests {
     use super::*;
     use serde_yaml;
-    
+    use crate::config::webhook_config::ConfigKind;
+
     #[test]
     fn test_deserialize() {
         let yaml = r#"
 # Git-Actions rules configuration for Project A
 apiVersion: git-actions/v1
-kind: RulesConfig
+kind: Rules
+metadata:
+  name: "default-rules"
 
 # Configuration specification
 spec:
-  webhooks:
-    - path: "/webhook/github"
-      type: "bitbucket"
-      secretFromEnv: "GITHUB_SECRET"
-
   rules:
     # Example rule: Run tests on PR creation
-    - name: "run-tests"
+    "run-tests":
       description: "Run tests when a PR is created or updated"
+      webhooks:
+        - "bitbucket-repo-a"
+        - "bitbucket-repo-b"
       # (optional) Array of event types to match. If not specified the rule will match all even types.
       event_types:
         # Event type as string
-        - "pull_request-opened"
-        - "pull_request-updated"
+        - "pull_request_opened"
+        - "pull_request_updated"
       # (optional) Array of branch filters to match. If not specified the rule will match all branches.
       branches:
         # `exact` means the branch name must match exactly
@@ -205,24 +200,23 @@ spec:
         
         let config: RulesConfig = serde_yaml::from_str(yaml).unwrap();
         
-        assert_eq!(config.api_version, "git-actions/v1");
+        assert_eq!(config.api_version.to_string(), "git-actions/v1");
         assert_eq!(config.kind, "RulesConfig");
-        assert_eq!(config.spec.webhooks.len(), 1);
+        assert_eq!(config.metadata.as_ref().unwrap().name.as_ref().unwrap(), "default-rules");
         assert_eq!(config.spec.rules.len(), 1);
         
-        let webhook = &config.spec.webhooks[0];
-        assert_eq!(webhook.path, "/webhook/github");
-        assert_eq!(webhook.webhook_type, "bitbucket");
-        assert_eq!(webhook.secret_from_env, "GITHUB_SECRET");
-        
-        let rule = &config.spec.rules[0];
-        assert_eq!(rule.name, "run-tests");
+        // Get the rule by its key
+        let rule = config.spec.rules.get("run-tests").unwrap();
         assert_eq!(rule.description, Some("Run tests when a PR is created or updated".to_string()));
+        
+        assert_eq!(rule.webhooks.len(), 2);
+        assert_eq!(rule.webhooks[0], "bitbucket-repo-a");
+        assert_eq!(rule.webhooks[1], "bitbucket-repo-b");
         
         let event_types = rule.event_types.as_ref().unwrap();
         assert_eq!(event_types.len(), 2);
-        assert_eq!(event_types[0], "pull_request-opened");
-        assert_eq!(event_types[1], "pull_request-updated");
+        assert_eq!(event_types[0], "pull_request_opened");
+        assert_eq!(event_types[1], "pull_request_updated");
         
         let branches = rule.branches.as_ref().unwrap();
         assert_eq!(branches.len(), 3);
@@ -263,66 +257,72 @@ spec:
     
     #[test]
     fn test_serialize() {
+        let mut rules = HashMap::new();
+        rules.insert(
+            "run-tests".to_string(),
+            Rule {
+                description: Some("Run tests when a PR is created or updated".to_string()),
+                webhooks: vec!["bitbucket-repo-a".to_string(), "bitbucket-repo-b".to_string()],
+                event_types: Some(vec![
+                    "pull_request_opened".to_string(),
+                    "pull_request_updated".to_string(),
+                ]),
+                branches: Some(vec![
+                    BranchFilter::Exact { exact: "main".to_string() },
+                    BranchFilter::Pattern { pattern: "feature/*".to_string() },
+                ]),
+                paths: Some(vec![
+                    PathFilter::Exact { exact: "project-a/index.js".to_string() },
+                    PathFilter::Pattern { pattern: "project-a/**/*.ts".to_string() },
+                ]),
+                actions: vec![
+                    Action {
+                        http: Some(HttpAction {
+                            method: "POST".to_string(),
+                            url: "http://localhost:18080/webhook/gitlab-also".to_string(),
+                            headers: Some({
+                                let mut map = HashMap::new();
+                                map.insert("Content-Type".to_string(), "application/json".to_string());
+                                map
+                            }),
+                            body: Some("{}".to_string()),
+                        }),
+                        shell: None,
+                    },
+                    Action {
+                        http: None,
+                        shell: Some(ShellAction {
+                            command: "cd project-a && npm run test".to_string(),
+                            working_dir: "./projects".to_string(),
+                        }),
+                    },
+                ],
+            },
+        );
+
+        let mut metadata = Metadata::default();
+        metadata.name = Some("default-rules".to_string());
+
         let config = RulesConfig {
-            api_version: "git-actions/v1".to_string(),
-            kind: "RulesConfig".to_string(),
-            spec: Spec {
-                webhooks: vec![
-                    Webhook {
-                        path: "/webhook/github".to_string(),
-                        webhook_type: "bitbucket".to_string(),
-                        secret_from_env: "GITHUB_SECRET".to_string(),
-                    },
-                ],
-                rules: vec![
-                    Rule {
-                        name: "run-tests".to_string(),
-                        description: Some("Run tests when a PR is created or updated".to_string()),
-                        event_types: Some(vec![
-                            "pull_request-opened".to_string(),
-                            "pull_request-updated".to_string(),
-                        ]),
-                        branches: Some(vec![
-                            BranchFilter::Exact { exact: "main".to_string() },
-                            BranchFilter::Pattern { pattern: "feature/*".to_string() },
-                        ]),
-                        paths: Some(vec![
-                            PathFilter::Exact { exact: "project-a/index.js".to_string() },
-                            PathFilter::Pattern { pattern: "project-a/**/*.ts".to_string() },
-                        ]),
-                        actions: vec![
-                            Action {
-                                http: Some(HttpAction {
-                                    method: "POST".to_string(),
-                                    url: "http://localhost:18080/webhook/gitlab-also".to_string(),
-                                    headers: Some({
-                                        let mut map = HashMap::new();
-                                        map.insert("Content-Type".to_string(), "application/json".to_string());
-                                        map
-                                    }),
-                                    body: Some("{}".to_string()),
-                                }),
-                                shell: None,
-                            },
-                            Action {
-                                http: None,
-                                shell: Some(ShellAction {
-                                    command: "cd project-a && npm run test".to_string(),
-                                    working_dir: "./projects".to_string(),
-                                }),
-                            },
-                        ],
-                    },
-                ],
+            api_version: "git-actions/v1".into(),
+            kind: ConfigKind::RulesConfig,
+            metadata: Some(metadata),
+            spec: RulesSpec {
+                rules,
             },
         };
         
         let yaml = serde_yaml::to_string(&config).unwrap();
         let deserialized: RulesConfig = serde_yaml::from_str(&yaml).unwrap();
         
-        assert_eq!(deserialized.api_version, config.api_version);
+        assert_eq!(deserialized.api_version.to_string(), config.api_version.to_string());
         assert_eq!(deserialized.kind, config.kind);
-        assert_eq!(deserialized.spec.webhooks.len(), config.spec.webhooks.len());
         assert_eq!(deserialized.spec.rules.len(), config.spec.rules.len());
+        
+        // Verify the rule was correctly serialized and deserialized
+        let rule = deserialized.spec.rules.get("run-tests").unwrap();
+        assert_eq!(rule.description, Some("Run tests when a PR is created or updated".to_string()));
+        assert_eq!(rule.webhooks.len(), 2);
+        assert_eq!(rule.webhooks[0], "bitbucket-repo-a");
     }
 }
