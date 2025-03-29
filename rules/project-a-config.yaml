@@ -1,0 +1,78 @@
+# Git-Actions rules configuration for Project A
+apiVersion: git-actions/v1
+kind: RulesConfig
+
+# Configuration specification
+spec:
+  webhooks:
+    - path: "/github"
+      type: "bitbucket"
+      secretFromEnv: "GITHUB_SECRET"
+  
+  rules:
+    # Example rule: Run tests on PR creation
+    - name: "run-tests"
+      description: "Run tests when a PR is created or updated"
+      # (optional) Array of event types to match. If not specified the rule will match all even types.
+      event_types:
+        # Event type as string
+        - "pull_request-opened"
+        - "pull_request-updated"
+      # (optional) Array of branch filters to match. If not specified the rule will match all branches.
+      branches:
+        # `exact` means the branch name must match exactly
+        - exact: "main"
+        # `pattern` means the branch name must match the pattern
+        - pattern: "feature/*"
+        # `regex` means the branch name must match the regex
+        - regex: "feature/*"
+      # (optional) Array of path filters to match. If not specified the rule will match modifications from all paths.
+      paths:
+        # `exact` means the path must match exactly
+        - exact: "project-a/index.js"
+        # `pattern` means the path must match the wildcard pattern
+        - pattern: "project-a/**/*.ts"
+        # `regex` means the path must match the regex
+        - regex: "project-a/[\\w]+/*.ts"
+      # list of actions to perform when the rule matches
+      actions:
+        # call an http webhook
+        - http:
+            method: "POST"
+            url: "http://localhost:18080/webhook/gitlab-also"
+            headers:
+              "Content-Type": "application/json"
+            body: |
+              {
+                "event": "pull_request",
+                "action": "opened",
+                "pull_request": {
+                  "number": 123,
+                  "title": "Test PR",
+                  "body": "This is a test PR",
+                  "head": {
+                    "ref": "feature/test-pr",
+                    "sha": "1234567890abcdef"
+                  },
+                  "base": {
+                    "ref": "main",
+                    "sha": "fedcba0987654321"
+                  }
+                }
+              }
+        # but also, run a shell command
+        - shell:
+            command: "cd project-a && npm run test"
+            working_dir: "./projects"
+    
+    # Another example rule: Deploy on merge to main
+    - name: "deploy-main"
+      description: "Deploy when changes are merged to main"
+      event_types:
+        - "pull_request.merged"
+      branches:
+        - exact: "main"
+      actions:
+        - shell:
+            command: "cd project-a && npm run deploy"
+            working_dir: "./projects"
