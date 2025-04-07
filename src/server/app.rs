@@ -2,22 +2,20 @@ use anyhow::{Context, Result};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-use super::{handlers, AppState, RuleMatcher};
-use crate::config::{RulesConfig, ServerConfig};
+use crate::config::Config;
 use crate::server::router;
 use axum::{routing::get, Router};
-use std::sync::Arc;
 use tokio::signal;
 use tracing::info;
 
 /// HTTP server for Git-Actions
-pub struct Server {
-    config: ServerConfig,
+pub struct App {
+    config: Config,
 }
 
-impl Server {
+impl App {
     /// Create a new HTTP server with the given configuration
-    pub fn new(config: &ServerConfig) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
             config: config.to_owned(),
         }
@@ -25,18 +23,20 @@ impl Server {
 
     /// Start the HTTP server
     pub async fn start(&mut self) -> Result<()> {
-        let addr = format!("{}:{}", self.config.spec.host, self.config.spec.port);
+        let addr = format!("{}:{}", self.config.server_config.spec.host, self.config.server_config.spec.port);
         let listener = TcpListener::bind(&addr)
             .await
             .with_context(|| format!("Could not bind to {}", addr))?;
 
         info!("Server listening on {}", addr);
 
-        let router = router::from_server_config(&self.config)?;
-        axum::serve(listener, router)
+        // create a router
+        let app = router::create_router(&self.config).await?;
+
+        axum::serve(listener, app)
             .with_graceful_shutdown(Self::shutdown_signal())
             .await
-            .context("Failed to start server")?;
+            .with_context(|| "Failed to start server")?;
 
         Ok(())
     }

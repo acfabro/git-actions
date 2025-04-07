@@ -1,70 +1,48 @@
-use crate::config::{loader, ServerConfig, Webhook};
-use crate::server::{handlers, AppState, RuleMatcher};
-use anyhow::{Context, Error, Result};
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use crate::config::Config;
+use crate::server::{handlers, AppState};
+use crate::webhook::handlers::bitbucket::BitbucketHandler;
+use crate::webhook::handlers::webhook_type::{ApiConfig, WebhookTypeHandlerBase};
+use crate::webhook::{handlers::webhook::webhook_handler, service::WebhookEntry, WebhookService};
+use anyhow::{Context, Result};
+use axum::Router;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tower_http::trace::TraceLayer;
-use tracing::error;
+use axum::routing::{get, post};
+// use tower_http::trace::TraceLayer;
+use tracing::info;
 
-/// Create the router with all routes
-pub fn from_server_config(config: &ServerConfig) -> Result<Router> {
-    // All rule configurations
-    let rule_configs =
-        loader::load_rule_configs(config.clone().spec.rule_configs.unwrap_or_default())
-            .with_context(|| "Failed to load rule configurations")?;
+/// Create a router with all routes for the webhooks
+pub async fn create_router(config: &Config) -> Result<Router> {
+    // Create webhook entries
+    let mut path_to_entry = HashMap::new();
 
-    // Create rule matcher
-    let rule_matcher = Arc::new(RuleMatcher::new(&rule_configs));
-    let app_state = AppState { rule_matcher };
-
-    // Extract webhook configurations
-    let mut webhooks = Vec::new();
-    for rule_config in &rule_configs {
-        for (_, webhook) in &rule_config.spec.webhooks {
-            webhooks.push(webhook.clone());
-        }
+    for (webhook_name, webhook_config) in &config.webhooks {
+        // TODO implement
     }
 
-    // Create webhook routes
-    let mut webhook_routes = Router::new();
-    for webhook in &webhooks {
-        // Use ? to propagate the error
-        webhook_routes = register_webhook_route(webhook_routes, webhook)?;
-    }
+    // Create webhook service
+    let webhook_service = Arc::new(WebhookService::new(
+        path_to_entry,
+        config.rules.clone(),
+    ));
 
+    // Create app state
+    let app_state = AppState {
+        webhook_service: webhook_service.clone(),
+    };
+    
     // Create main router
-    let app = Router::new()
+    let mut app: Router = Router::new()
         .route("/health", get(handlers::health::health_check))
         .route("/metrics", get(handlers::metrics::metrics))
-        .nest("/webhooks", webhook_routes)
-        .layer(TraceLayer::new_for_http())
+        // .layer(TraceLayer::new_for_http())
         .with_state(app_state);
-
-    Ok(app)
-}
-
-/// Register webhook routes based on webhook type
-fn register_webhook_route(
-    webhook_routes: Router<AppState>,
-    webhook: &Webhook,
-) -> Result<Router<AppState>> {
-    // Return Result
-    let path = &webhook.path;
-    let webhook_type = &webhook.webhook_type;
-
-    match webhook_type.as_str() {
-        "bitbucket" => {
-            tracing::info!("Registering Bitbucket webhook: {}", path);
-            Ok(webhook_routes.route(path, post(handlers::bitbucket::bitbucket_webhook)))
-        }
-        // throw errors for unimplemented webhook types
-        _ => Err(Error::msg(format!(
-            "Unimplemented webhook type [{}] for path: {}",
-            webhook_type, path
-        ))),
+    
+    // Register webhook routes
+    for path in webhook_service.get_all_paths() {
+        info!("Registering webhook route: {}", path);
+        app = app.route(path, post(webhook_handler));
     }
+    
+    Ok(app)
 }

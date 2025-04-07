@@ -1,9 +1,11 @@
 mod config;
 mod logging;
 mod server;
+mod webhook;
 
+use anyhow::Result;
 use clap::Parser;
-use config::ServerConfig;
+use config::Config;
 use std::path::PathBuf;
 
 /// Git-Actions: A Rust-based automation tool for Git events
@@ -16,12 +18,12 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     // Parse command line arguments
     let args = Args::parse();
 
-    // Load server configuration
-    let config = ServerConfig::from_file(&args.config)?;
+    // Load configuration
+    let config = Config::load(&args.config)?;
 
     // run the server
     server::run(config).await?;

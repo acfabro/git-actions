@@ -33,16 +33,13 @@ pub async fn bitbucket_webhook(
 
     tracing::info!("Event type: {}, Branch: {}", event_type, branch);
 
-    // Find matching rules using the RuleMatcher from AppState
-    let matching_rules = state
-        .rule_matcher
-        .find_matching_rules(&path, &event_type, &branch, &paths);
-
-    tracing::info!("Found {} matching rules", matching_rules.len());
-
-    // Execute actions for matching rules
-    if let Err(e) = state.rule_matcher.execute_actions(matching_rules, &body) {
-        tracing::error!("Error executing actions: {}", e);
+    // Use the webhook_service to process the webhook
+    // Create a simple HashMap for headers (we don't have headers in this handler)
+    let headers = std::collections::HashMap::new();
+    
+    // Process the webhook using the webhook service
+    if let Err(e) = state.webhook_service.process_webhook(&path, &body, &headers).await {
+        tracing::error!("Error processing webhook: {}", e);
         return Err(WebhookError::ActionExecutionError(e.to_string()));
     }
 
