@@ -1,8 +1,9 @@
 # Server configuration for Git-Actions
 apiVersion: "git-actions/v1"
 kind: "ServerConfig"
+metadata:
+  name: "git-actions-server"
 
-# Server specification
 spec:
   port: 8080                # Port number for the HTTP server
   host: "0.0.0.0"           # Host binding address
@@ -17,7 +18,6 @@ spec:
     format: "json"          # Log format: text, json, structured
     file: "/var/log/git-actions.log" # Optional log file
     
-  rule_configs:             # Array of additional rule configuration files to load
-    - "/path/to/rules/project-a-config.yaml"
-    - "/path/to/rules/project-b-config.yaml"
-    - "./rules/common-config.yaml"
+  config_files:             # Globs pointing to WebhookConfig and RulesConfig files
+    - "webhooks/*.yaml"     # Load all webhook configurations
+    - "rules.yaml"          # Load rules configuration

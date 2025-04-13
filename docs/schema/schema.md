@@ -4,23 +4,23 @@ This document provides detailed information about the Git-Actions configuration 
 
 ## Overview
 
-Git-Actions uses two types of configuration files:
-1. `server.yaml` - Server and HTTP listener configuration
-2. Rule configuration files - Webhook and rules configuration
+Git-Actions uses three main types of configuration resources, typically defined in separate YAML files:
+1. `ServerConfig` - Defines server settings, logging, and paths to other configurations. Usually in `server.yaml`.
+2. `WebhookConfig` - Defines individual webhook endpoints, their type, authentication, and API details. Often placed in a `webhooks/` directory (e.g., `webhooks/bitbucket-repo-a.yaml`).
+3. `RulesConfig` - Defines rules that trigger actions based on events from specific webhooks. Usually in `rules.yaml` or similar.
 
-All configuration files use YAML format with Kubernetes-like structure using `apiVersion` and `kind` fields.
+All configuration files use YAML format with a Kubernetes-inspired structure using `apiVersion`, `kind`, and optional `metadata` fields.
 
-## Server Configuration (`server.yaml`)
+## 1. Server Configuration (`ServerConfig`)
 
-The server configuration controls the HTTP server that listens for webhook events.
+The `ServerConfig` resource controls the main application server, including the HTTP listener, TLS, logging, and references to other configuration files.
 
 ```yaml
-# nonk8s
-# Server configuration for Git-Actions
-apiVersion: "git-actions/v1"
-kind: "ServerConfig"
-
-# Server specification
+# Example: server.yaml
+apiVersion: git-actions/v1
+kind: ServerConfig
+metadata:  # Optional metadata for the server configuration
+  name: "git-actions-server"
 spec:
   port: 8080                # Port number for the HTTP server (integer, required)
   host: "0.0.0.0"           # Host binding address (string, required)
@@ -35,98 +35,111 @@ spec:
     format: "json"          # Log format: text, json, or structured (string, optional)
     file: "/var/log/git-actions.log" # Log file path (string, optional)
 
-  rule_configs: # Array of additional rule configuration files to load (array, optional)
-    - "/path/to/rules/project-a-config.yaml"
-    - "/path/to/rules/project-b-config.yaml"
-    - "./rules/common-config.yaml"
+  config_files: # Globs pointing to WebhookConfig and RulesConfig files (array, optional)
+    - "webhooks/*.yaml"
+    - "rules.yaml"
 ```
 
-## Rules Configuration Files
+## 2. Webhook Configuration (`WebhookConfig`)
 
-These files define webhook endpoints and the rules that respond to Git events.
-
-### Top-Level Structure
+The `WebhookConfig` resource defines a specific endpoint that receives webhooks from a source like Bitbucket or GitHub. Each webhook needs its own configuration.
 
 ```yaml
-# nonk8s
-# Git-Actions rules configuration
-apiVersion: "git-actions/v1"
-kind: "RulesConfig"
-
-# Configuration specification
+# Example: webhooks/bitbucket-repo-a.yaml
+apiVersion: git-actions/v1
+kind: WebhookConfig
+metadata:
+  name: "bitbucket-repo-a"  # Unique name for this webhook configuration (string, required)
 spec:
-  webhooks:                  # Webhook endpoint definitions (object, required)
-  # webhook configurations...
+  path: "/webhook/bitbucket/repo-a" # URL path for this webhook (string, required)
+  
+  # Type-specific configuration section (only one of these should be present)
+  bitbucket: # Bitbucket-specific configuration (object, required for Bitbucket webhooks)
+    tokenFromEnv: "BITBUCKET_MYREPO_TOKEN" # Environment variable containing the webhook token (string, required)
+    
+    api: # Optional: Configuration for making API calls back to Bitbucket
+      baseUrl: "https://bitbucket.example.com/rest/api/1.0" # Base URL of the Bitbucket API (string, required if api is present)
+      project: "PROJ" # Project key/slug (string, optional, context-dependent)
+      repo: "repo-a"  # Repository name/slug (string, optional, context-dependent)
+      auth: # Authentication details for the API (object, required if api is present)
+        type: "token" # Authentication type (string, required, e.g., "token", "basic")
+        tokenFromEnv: "BITBUCKET_API_TOKEN_A" # Environment variable containing the API token (string, required for token auth)
+        # usernameFromEnv: "BITBUCKET_USERNAME" # For basic auth
+        # passwordFromEnv: "BITBUCKET_PASSWORD" # For basic auth
+  
+  # github: # GitHub-specific configuration (object, required for GitHub webhooks)
+  #   secretFromEnv: "GITHUB_WEBHOOK_SECRET" # Environment variable containing the webhook secret (string, required)
+  #
+  #   api: # Optional: Configuration for making API calls back to GitHub
+  #     # Similar structure to Bitbucket API configuration
+```
 
-  rules:                     # Rule definitions (object, required)
+## 3. Rules Configuration (`RulesConfig`)
+
+The `RulesConfig` resource defines a set of rules that determine which actions to take when specific events occur on configured webhooks.
+
+```yaml
+# Example: rules.yaml
+apiVersion: git-actions/v1
+kind: RulesConfig
+metadata: # Optional metadata for the ruleset
+  name: "default-rules"
+spec:
+  rules: # Map of rule definitions (object, required)
   # rule configurations...
 ```
 
-### Webhook Configuration
-
-```yaml
-spec:
-  webhooks:
-    # Unique identifier for the webhook configuration (string, required key)
-    webhook_id:
-      path: "/webhook/path"  # URL path for the webhook (string, required)
-      # Type: "bitbucket" (required). Note: Only "bitbucket" (Server/DC) is supported in V1.
-      # Support for "github", "gitlab", and Bitbucket Cloud is planned for future versions.
-      type: "bitbucket"
-      # Authentication: Use secretFromEnv for HMAC signature validation (recommended for Bitbucket Server/DC)
-      secretFromEnv: "BITBUCKET_SECRET_ENV_VAR"  # Env var containing the webhook secret (string, required)
-      # usernameFromEnv/passwordFromEnv might be needed for specific Bitbucket API interactions in future actions,
-      # but secretFromEnv is primary for webhook validation.
-```
-
-### Rule Configuration
+### Rule Definition
 
 ```yaml
 spec:
   rules:
-    "rule-name":            # Unique rule name as the key (string, required)
+    "run-tests":            # Unique rule name as the key (string, required)
       description: "..."     # Description of the rule (string, optional)
       
       # Webhooks this rule applies to (array of strings, required).
-      # Each string must match a key in the top-level 'spec.webhooks' object.
-      webhooks: ["webhook_id_1", "webhook_id_2"]
+      # Each string must match the 'metadata.name' of a WebhookConfig resource.
+      webhooks:
+        - "bitbucket-repo-a"
+        - "bitbucket-repo-b" # Example if another webhook config exists
       
       # Event types to match (array of strings, required). Use hyphens.
       event_types:
         - "push"
-        - "pull_request_merged"
+        - "pull_request_opened"
+        - "pull_request_updated"
+        # - "pull_request_merged" # Example event type
       
       branches:              # Branch filters (array of objects, optional)
         - exact: "main"      # Exact branch name
         - pattern: "feature/*" # Glob pattern
         - regex: '^release-\d+\.\d+$' # Regular expression
-        - not: "temp/*"      # Negated pattern
+        # - not: "temp/*"      # Negated pattern (Note: 'not' filters might not be implemented initially)
       
       paths:                 # Path/file filters (array of objects, optional)
         - exact: "file.txt"  # Exact file path
         - pattern: "src/**/*.js" # Glob pattern
         - regex: '.*\.sql$'  # Regular expression
-        - not: "**/*.md"     # Negated pattern
+        # - not: "**/*.md"     # Negated pattern (Note: 'not' filters might not be implemented initially)
       
-      # Additional conditions using Tera expressions (array of strings, optional).
-      # NOTE: This field is parsed but IGNORED by the rule matching logic in V1.
-      # Condition evaluation is planned for a future version.
-      conditions:
-        - "{{ event.author != 'dependabot' }}"
-        - "{{ event.changed_files | length > 0 }}"
+      # The 'conditions' field is removed as rule matching logic is handled by event_types, branches, paths.
       
       actions:               # Actions to execute (array of objects, required)
         # HTTP action
         - http:              # Action type is the key
-            url: "https://example.com/api" # Request URL (string, required)
-            method: "POST"     # HTTP method: GET, POST, PUT, DELETE (string, required)
+            url: "http://jenkins.example.com/job/run-tests/build" # Request URL (string, required)
+            method: "POST"     # HTTP method: GET, POST, PUT, DELETE, etc. (string, required)
             headers:           # HTTP headers (object, optional)
               Content-Type: "application/json"
               Authorization: "Bearer {{ env.API_TOKEN }}"
-            body:              # Request body (object/string, optional)
-              key: "value"
-              data: "{{ event.data }}"
-            # timeout: (Removed - Universal default timeout applies in V1)
+            body: |            # Request body (string, often YAML or JSON, optional)
+              {
+                "parameter": [
+                  {"name": "BRANCH", "value": "{{ event.branch }}"},
+                  {"name": "COMMIT", "value": "{{ event.commit_hash }}"}
+                ]
+              }
+            # timeout: (Timeout configuration might be added later)
         
         # Shell command action
         - shell:             # Action type is the key
@@ -135,7 +148,7 @@ spec:
             environment:       # Environment variables (object, optional)
               KEY: "value"
               TOKEN: "{{ env.SECRET_TOKEN }}"
-            # timeout: (Removed - Universal default timeout applies in V1)
+            # timeout: (Timeout configuration might be added later)
 ```
 
 ## Variable Substitution
@@ -149,8 +162,8 @@ Git-Actions uses the Tera templating engine for variable substitution with doubl
 ### Available Variables
 
 - `event` - Event data from the Git webhook
-  - Common properties: `event.author`, `event.repository`, `event.branch`, `event.commit_hash`, `event.changed_files`, etc.
-  - The exact properties depend on the event type and source (GitHub, GitLab, or Bitbucket)
+  - Properties available depend on the normalized `Event` structure (`src/webhook/event.rs`) and the specific webhook handler.
+  - Common examples: `event.event_type`, `event.branch`, `event.changed_files`, `event.commit_hash` (may be nested in `event.payload`), `event.payload` (original raw payload).
   
 - `env` - Environment variables
   - Access with `{{ env.VAR_NAME }}`
@@ -168,72 +181,121 @@ The following event types are supported depending on the Git platform:
 | `pull_request_merged`  | PR merged to target branch  |
 | `pull_request_closed`  | PR closed without merging   |
 | `tag`                  | New tag created             |
-# Note: Event type names depend on the source (Bitbucket, GitHub, GitLab).
-# These are examples; refer to provider documentation and normalized event structure.
+# Note: Event type names are normalized by the specific WebhookTypeHandler.
+# Refer to the handler implementation (e.g., BitbucketHandler) and the normalized event structure.
 
 ## Examples
 
-### GitHub Webhook with Docker Build
+### Example: GitHub Webhook and Docker Build Rule
 
-```yaml
-# nonk8s
-# Git-Actions rules configuration
-apiVersion: "git-actions/v1"
-kind: "RulesConfig"
+This requires three configuration parts:
 
-spec:
-  webhooks:
-    # Define the webhook source
-    github_repo_example: # Unique ID for this webhook
-      path: "/webhook/github-example"
-      type: "github" # Non-functional in V1, illustrative purposes only
-      secretFromEnv: "GITHUB_SECRET"
+1.  **Server Config (`server.yaml`)**: Tells the server where to find the other configs.
+    ```yaml
+    apiVersion: git-actions/v1
+    kind: ServerConfig
+    metadata:
+      name: "main-server"
+    spec:
+      port: 8080
+      host: "0.0.0.0"
+      logging:
+        level: "DEBUG"
+      config_files:
+        - "webhooks/github-*.yaml" # Load GitHub webhooks
+        - "rules/docker-rules.yaml" # Load Docker build rules
+    ```
 
-  rules:
-    "docker-build-on-main-push":
-      description: "Build Docker image when Dockerfile changes on main branch"
-      webhooks: [ "github_repo_example" ] # Link rule to the webhook ID
-      event_types:
-        - "push" # Use hyphenated if applicable (e.g., pull_request_opened)
-      branches:
-        - exact: "main"
-      paths:
-        - pattern: "Dockerfile"
-        - pattern: "docker/**/*"
-      # No 'conditions' field used in V1 logic
-      actions:
-        - shell: # Use 'shell:' as the key
-            command: "docker build -t myapp:{{ event.branch }} ."
-            # No 'timeout' field needed
-```
+2.  **Webhook Config (`webhooks/github-main-repo.yaml`)**: Defines the GitHub webhook endpoint.
+    ```yaml
+    apiVersion: git-actions/v1
+    kind: WebhookConfig
+    metadata:
+      name: "github-main-repo" # Name used in rules
+    spec:
+      path: "/webhook/github-main"
+      github: # GitHub-specific configuration
+        secretFromEnv: "GITHUB_MAIN_SECRET"
+        # No 'api' section needed if the handler doesn't call GitHub API
+    ```
 
-### Monorepo Service-Specific Testing (Example)
+3.  **Rules Config (`rules/docker-rules.yaml`)**: Defines the rule to trigger the build.
+    ```yaml
+    apiVersion: git-actions/v1
+    kind: RulesConfig
+    metadata:
+      name: "docker-build-rules"
+    spec:
+      rules:
+        "docker-build-on-main-push":
+          description: "Build Docker image when Dockerfile changes on main branch"
+          webhooks: [ "github-main-repo" ] # Matches WebhookConfig metadata.name
+          event_types: [ "push" ]
+          branches: [ { exact: "main" } ]
+          paths:
+            - { pattern: "Dockerfile" }
+            - { pattern: "docker/**/*" }
+          actions:
+            - shell:
+                command: "docker build -t myapp:{{ event.commit_hash | slice(end=7) }} ."
+                # working_dir: "/path/to/repo" # Optional: If needed
+    ```
 
-```yaml
-# Git-Actions rules configuration
-apiVersion: "git-actions/v1"
-kind: "RulesConfig"
+### Example: Monorepo Service-Specific Testing (Bitbucket)
 
-spec:
-  webhooks:
-    # Define the webhook source
-    monorepo_webhook: # Unique ID
+This requires three configuration parts:
+
+1.  **Server Config (`server.yaml`)**: (Similar to above, pointing to the relevant webhook and rule files)
+    ```yaml
+    apiVersion: git-actions/v1
+    kind: ServerConfig
+    metadata:
+      name: "git-actions-server"
+    spec:
+      port: 8080
+      host: "0.0.0.0"
+      config_files:
+        - "webhooks/bitbucket-monorepo.yaml"
+        - "rules/monorepo-tests.yaml"
+    ```
+
+2.  **Webhook Config (`webhooks/bitbucket-monorepo.yaml`)**:
+    ```yaml
+    apiVersion: git-actions/v1
+    kind: WebhookConfig
+    metadata:
+      name: "bitbucket-monorepo"
+    spec:
       path: "/webhook/monorepo"
-      type: "bitbucket" # Assuming Bitbucket for V1 compatibility
-      secretFromEnv: "MONOREPO_SECRET"
-      
-  rules:
-    "frontend-tests-on-pr":
-      description: "Run frontend tests when frontend code changes in a PR"
-      webhooks: ["monorepo_webhook"] # Link rule to the webhook ID
-      event_types:
-        - "pull_request_opened" # Use hyphenated event types
-        - "pull_request_updated"
-      paths:
-        - pattern: "frontend/**/*"
-      # No 'conditions' field used in V1 logic
-      actions:
-        - shell: # Use 'shell:' as the key
-            command: "cd frontend && npm test"
-            working_dir: "/repo/path" # Example working directory
-            # No 'timeout' field needed
+      bitbucket:
+        tokenFromEnv: "BITBUCKET_MONOREPO_SECRET"
+        # 'api' section might be needed if Bitbucket handler needs to fetch changed files via API
+        api:
+          baseUrl: "https://bitbucket.example.com/rest/api/1.0"
+          # project/repo might not be needed if handler extracts from payload
+          auth:
+            type: "token"
+            tokenFromEnv: "BITBUCKET_API_TOKEN"
+    ```
+
+3.  **Rules Config (`rules/monorepo-tests.yaml`)**:
+    ```yaml
+    apiVersion: git-actions/v1
+    kind: RulesConfig
+    metadata:
+      name: "monorepo-testing-rules"
+    spec:
+      rules:
+        "frontend-tests-on-pr":
+          description: "Run frontend tests when frontend code changes in a PR"
+          webhooks: ["bitbucket-monorepo"]
+          event_types:
+            - "pull_request_opened"
+            - "pull_request_updated"
+          paths:
+            - { pattern: "frontend/**/*" }
+          actions:
+            - shell:
+                command: "npm run test --prefix frontend" # Run test in frontend subdir
+                # working_dir: "/path/to/checkout" # Optional: Base checkout dir
+    ```

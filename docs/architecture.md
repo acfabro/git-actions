@@ -29,17 +29,17 @@ graph TD
    - Routes requests to appropriate handlers
    - Implements health check and metrics endpoints
 
-2. **Event Processing Layer (V1 Scope: Bitbucket Only)**
-   - Parses raw webhook payloads from **Bitbucket Data Center/Server**.
-   - Normalizes Bitbucket events into a common internal representation.
+2. **Event Processing Layer**
+   - Parses raw webhook payloads from different sources (e.g., Bitbucket, GitHub).
+   - Uses type-specific handlers to normalize events into a common internal representation.
    - Extracts relevant metadata (branch, commit, files changed, etc.).
-   - **Note:** Support for GitHub, GitLab, and Bitbucket Cloud is deferred beyond V1.
+   - Makes external API calls when needed (e.g., to fetch changed files).
 
-3. **Rule Matching Layer (V1 Scope: No Conditions)**
+3. **Rule Matching Layer**
    - Evaluates events against defined rules linked via the `rule.webhooks` field.
-   - Applies branch filters (`exact`, `pattern`, `regex`, `not`).
-   - Applies path filters (`exact`, `pattern`, `regex`, `not`).
-   - **Note:** Evaluation of the `rule.conditions` field using Tera is **deferred** in V1. Rules match based solely on webhook source, event type, branch filters, and path filters.
+   - Applies branch filters (`exact`, `pattern`, `regex`).
+   - Applies path filters (`exact`, `pattern`, `regex`).
+   - Uses a centralized rule evaluator to maintain consistent matching logic.
    - Determines which rules should trigger actions.
 
 4. **Action Execution Layer (V1 Scope: Simple Sequential)**
@@ -51,33 +51,38 @@ graph TD
    - **Note:** Advanced action chaining (conditionals, data passing) and error handling (retries, fallbacks) are deferred beyond V1. Per-action timeouts are also deferred.
 
 5. **Configuration Layer**
-   - Loads and parses YAML configuration files (`ServerConfig`, `RulesConfig`) following the defined schema (apiVersion/kind/spec structure).
+   - Loads and parses YAML configuration files (`ServerConfig`, `WebhookConfig`, `RulesConfig`) following the defined schema (apiVersion/kind/metadata/spec structure).
    - Validates configuration structure.
    - Provides access to configuration data throughout the system.
-   - Relies on environment variables for secrets (`secretFromEnv`, `env.*` in Tera).
+   - Relies on environment variables for secrets (`secretFromEnv`, `tokenFromEnv`, `env.*` in Tera).
 
 ### 1.2 Core Components
 
 ```mermaid
 graph LR
-    A[HTTP Webhook Server] --> B[Event Parser]
-    B --> C[Rule Matcher]
-    C --> D[Action Executor]
+    A[HTTP Webhook Server] --> B[Webhook Service]
+    B --> C[WebhookTypeHandler]
+    C --> D[Rule Evaluator]
+    D --> E[Action Executor]
     
-    E[Configuration Manager] --> A
-    E --> B
-    E --> C
-    E --> D
+    F[Configuration Manager] --> A
+    F --> B
+    F --> C
+    F --> D
+    F --> E
     
-    H[Bitbucket Adapter] --> B
+    C --> G[BitbucketHandler]
+    C --> H[Other Handlers]
     
-    C --> I[Branch Filter]
-    C --> J[Path Filter]
+    D --> I[Branch Filter]
+    D --> J[Path Filter]
     
-    D --> L[HTTP Action Handler]
-    D --> M[Shell Command Handler]
+    E --> L[HTTP Action Handler]
+    E --> M[Shell Command Handler]
     
-    N[Template Engine] --> D
+    N[Template Engine] --> E
+    
+    G --> O[API Client]
 ```
 
 ### 1.3 Data Flow
@@ -103,22 +108,24 @@ sequenceDiagram
 #### Detailed Data Flow Description (V1)
 
 1. **Webhook Event Reception (Bitbucket)**
-   - Bitbucket Data Center/Server sends a webhook event to the HTTP server.
-   - The server validates the webhook signature using the secret specified by `secretFromEnv` for the matching `webhook_id`.
+   - A Git service (e.g., Bitbucket, GitHub) sends a webhook event to the HTTP server.
+   - The server routes the request to the appropriate webhook handler based on the URL path.
+   - The handler validates the webhook signature using the secret specified by `secretFromEnv` in the matching `WebhookConfig`.
    - The raw JSON payload and HTTP headers are captured.
 
-2. **Event Parsing and Normalization (Bitbucket)**
-   - The Bitbucket event parser extracts relevant information (event type, repo, branch, files, etc.).
+2. **Event Parsing and Normalization**
+   - The appropriate `WebhookTypeHandler` (e.g., `BitbucketHandler`) processes the event.
+   - The handler extracts relevant information (event type, repo, branch, etc.).
+   - If needed, the handler makes API calls to get additional information (e.g., changed files).
    - Data is normalized into the internal `Event` structure.
 
-3. **Rule Matching Process (V1 - No Conditions)**
-   - The rule matcher evaluates the normalized event against defined rules.
+3. **Rule Matching Process**
+   - The `RuleEvaluator` evaluates the normalized event against defined rules.
    - For each rule, checks are performed:
-     - Webhook Match: Does the rule's `webhooks` array contain the ID of the source webhook?
+     - Webhook Match: Does the rule's `webhooks` array contain the name of the source webhook?
      - Event Type Match: Does the event type match the rule's `event_types`?
      - Branch Filter Match: Does the event's branch match the rule's `branches` filters?
      - Path Filter Match: Do changed files match the rule's `paths` filters?
-     - **Note:** The `conditions` field is ignored in V1.
    - Rules passing all checks are collected.
 
 4. **Action Execution (V1 - Simple Sequential)**
@@ -142,33 +149,34 @@ The codebase is organized into the following module structure:
 graph LR
     main[main.rs] --> server[server/mod.rs]
     main --> config[config/mod.rs]
-    main --> event[event/mod.rs]
-    main --> rule[rule/mod.rs]
-    main --> action[action/mod.rs]
+    main --> webhook[webhook/mod.rs]
+    main --> logging[logging/mod.rs]
     
-    server --> server_http[server/http.rs]
-    server --> server_webhook[server/webhook.rs]
+    server --> server_app[server/app.rs]
+    server --> server_error[server/error.rs]
+    server --> server_event[server/event.rs]
+    server --> server_router[server/router.rs]
+    server --> server_handlers[server/handlers/mod.rs]
     
-    config --> config_loader[config/loader.rs]
-    config --> config_validator[config/validator.rs]
-    config --> config_types[config/types.rs]
+    server_handlers --> handlers_bitbucket[server/handlers/bitbucket.rs]
+    server_handlers --> handlers_health[server/handlers/health.rs]
+    server_handlers --> handlers_metrics[server/handlers/metrics.rs]
+    server_handlers --> handlers_webhook[server/handlers/webhook.rs]
     
-    event --> event_parser[event/parser.rs]
-    event --> event_bitbucket[event/bitbucket.rs]
-    event --> event_types[event/types.rs]
+    config --> config_common[config/common.rs]
+    config --> config_rules[config/rules_config.rs]
+    config --> config_server[config/server_config.rs]
+    config --> config_webhook[config/webhook_config.rs]
     
-    rule --> rule_matcher[rule/matcher.rs]
-    rule --> rule_filter[rule/filter.rs]
-    rule --> rule_types[rule/types.rs]
+    webhook --> webhook_error[webhook/error.rs]
+    webhook --> webhook_event[webhook/event.rs]
+    webhook --> webhook_rule_evaluator[webhook/rule_evaluator.rs]
+    webhook --> webhook_service[webhook/service.rs]
+    webhook --> webhook_handlers[webhook/handlers/mod.rs]
     
-    action --> action_executor[action/executor.rs]
-    action --> action_http[action/http.rs]
-    action --> action_shell[action/shell.rs]
-    action --> action_types[action/types.rs]
-    
-    template[template/mod.rs] --> action
-    template --> template_engine[template/engine.rs]
-    template --> template_context[template/context.rs]
+    webhook_handlers --> webhook_handlers_bitbucket[webhook/handlers/bitbucket.rs]
+    webhook_handlers --> webhook_handlers_webhook[webhook/handlers/webhook.rs]
+    webhook_handlers --> webhook_handlers_webhook_type[webhook/handlers/webhook_type.rs]
 ```
 
 ### 2.1 Module Descriptions
@@ -180,88 +188,112 @@ graph LR
 - Configures logging
 
 #### 2.1.2 Server Module (`server/`)
-- **`mod.rs`**: Server module entry point
-- **`http.rs`**: HTTP server implementation using a web framework
-- **`webhook.rs`**: Webhook endpoint handlers
+- **`mod.rs`**: Server module entry point, exports components
+- **`app.rs`**: HTTP server implementation using a web framework
+- **`error.rs`**: Error types for the server module
+- **`event.rs`**: Event handling for the server
+- **`router.rs`**: HTTP route definitions and handlers
+- **`handlers/`**: Endpoint-specific handlers
+  - **`bitbucket.rs`**: Legacy Bitbucket-specific endpoint (for backward compatibility)
+  - **`health.rs`**: Health check endpoint
+  - **`metrics.rs`**: Metrics endpoint
+  - **`webhook.rs`**: Generic webhook endpoint that delegates to the webhook module
 
 #### 2.1.3 Configuration Module (`config/`)
-- **`mod.rs`**: Configuration module entry point
-- **`loader.rs`**: YAML configuration file loading
-- **`validator.rs`**: Configuration validation
-- **`types.rs`**: Configuration data structures
+- **`mod.rs`**: Configuration module entry point, exports components
+- **`common.rs`**: Common configuration structures like Metadata
+- **`rules_config.rs`**: Rule configuration structures
+- **`server_config.rs`**: Server configuration structures
+- **`webhook_config.rs`**: Webhook configuration structures
 
-#### 2.1.4 Event Module (`event/`)
-- **`mod.rs`**: Event module entry point.
-- **`parser.rs`**: Defines traits for event parsing.
-- **`bitbucket.rs`**: V1 implementation for Bitbucket Data Center/Server parsing.
-- **`types.rs`**: Common event data structures.
-- **Note:** `github.rs`, `gitlab.rs` are placeholders for future provider support.
+#### 2.1.4 Webhook Module (`webhook/`)
+- **`mod.rs`**: Webhook module entry point, exports components
+- **`error.rs`**: Error types for the webhook module
+- **`event.rs`**: Normalized event structure
+- **`rule_evaluator.rs`**: Centralized rule matching logic
+- **`service.rs`**: Service coordinating webhook processing
+- **`handlers/`**: Type-specific webhook handlers
+  - **`mod.rs`**: Exports handler types
+  - **`bitbucket.rs`**: Bitbucket-specific implementation
+  - **`webhook.rs`**: Generic webhook handler
+  - **`webhook_type.rs`**: WebhookTypeHandler trait definition
 
-#### 2.1.5 Rule Module (`rule/`)
-- **`mod.rs`**: Rule module entry point.
-- **`matcher.rs`**: Implements rule matching logic based on webhook source, event type, branch, and path filters.
-- **`filter.rs`**: Contains logic for `exact`, `pattern`, `regex`, `not` filters.
-- **`condition.rs`**: Placeholder for condition evaluation logic (deferred in V1).
-- **`types.rs`**: Rule data structures (matching config schema).
-
-#### 2.1.6 Action Module (`action/`)
-- **`mod.rs`**: Action module entry point.
-- **`executor.rs`**: Orchestrates V1 action execution: asynchronous, sequential per rule, stops on error/timeout, applies universal timeout.
-- **`http.rs`**: Implements the `http:` action using an async HTTP client.
-- **`shell.rs`**: Implements the `shell:` action using async process execution. Must handle timeout enforcement and capture results. Security considerations are paramount here.
-- **`types.rs`**: Action data structures (matching config schema).
-
-#### 2.1.7 Template Module (`template/`)
-- **`mod.rs`**: Template module entry point.
-- **`engine.rs`**: Integrates the **Tera** template engine.
-- **`context.rs`**: Defines and builds the context (`event`, `env`) available during Tera rendering for action parameters.
+#### 2.1.5 Logging Module (`logging/`)
+- **`mod.rs`**: Logging configuration and setup
 
 ### 2.2 Key Interfaces
 
-#### Event Interface
+#### WebhookTypeHandler Interface
 ```rust
-// Normalized event representation
+#[async_trait]
+pub trait WebhookTypeHandler: Send + Sync {
+    /// Parse the webhook payload into a normalized Event
+    async fn parse_payload(&self, payload: &Value, headers: &HashMap<String, String>, api_config: &ApiConfig) -> Result<Event, WebhookError>;
+    
+    /// Validate the webhook signature
+    fn validate_webhook(&self, payload: &Value, headers: &HashMap<String, String>, secret: &str) -> Result<(), WebhookError>;
+}
+```
+
+#### Event Structure
+```rust
+/// Normalized event representation that all webhook types will convert their payloads into
+#[derive(Debug, Clone)]
 pub struct Event {
-    pub event_type: EventType,
-    pub source: EventSource,
-    pub repository: String,
+    /// Type of the event (e.g., "push", "pull_request")
+    pub event_type: String,
+    
+    /// Branch name (if applicable)
     pub branch: Option<String>,
-    pub author: Option<String>,
-    pub commit_hash: Option<String>,
+    
+    /// List of files changed in the event
     pub changed_files: Vec<String>,
-    pub payload: serde_json::Value, // Original payload
-}
-
-// Event parser trait
-pub trait EventParser {
-    fn parse(&self, payload: &[u8], headers: &HashMap<String, String>) -> Result<Event, EventError>;
-    fn validate_webhook(&self, payload: &[u8], headers: &HashMap<String, String>) -> Result<(), EventError>;
+    
+    /// Original payload for reference
+    pub payload: Value,
 }
 ```
 
-#### Rule Matching Interface
+#### Rule Evaluator Interface
 ```rust
-// Rule matcher
-pub trait RuleMatcher {
-    fn matches(&self, event: &Event, rule: &Rule) -> bool;
-}
+pub struct RuleEvaluator;
 
-// Filter trait
-pub trait Filter {
-    fn matches(&self, value: &str) -> bool;
+impl RuleEvaluator {
+    pub fn new() -> Self;
+    
+    pub fn matches(&self, event: &Event, rule: &Rule) -> bool;
+    
+    pub fn execute_actions(&self, rule_id: &str, rule: &Rule, event: &Event) -> Result<(), WebhookError>;
+    
+    fn matches_pattern(&self, value: &str, pattern: &str) -> bool;
+    
+    fn matches_regex(&self, value: &str, regex_str: &str) -> bool;
 }
 ```
 
-#### Action Execution Interface
+#### Webhook Service Interface
 ```rust
-// Action executor
-pub trait ActionExecutor {
-    fn execute(&self, action: &Action, context: &ActionContext) -> Result<ActionResult, ActionError>;
+pub struct WebhookEntry {
+    pub webhook_name: String,
+    pub webhook_config: WebhookConfig,
+    pub handler: Box<dyn WebhookTypeHandler>,
 }
 
-// Action context
-pub struct ActionContext<'a> {
-    pub event: &'a Event,
-    pub rule: &'a Rule,
-    pub env: &'a HashMap<String, String>,
+pub struct WebhookService {
+    path_to_entry: HashMap<String, WebhookEntry>,
+    name_to_entry: HashMap<String, WebhookEntry>,
+    rules: HashMap<String, Rule>,
+    rule_evaluator: Arc<RuleEvaluator>,
+}
+
+impl WebhookService {
+    pub fn new(config: &Config) -> Result<Self, WebhookError>;
+    
+    pub async fn process_webhook(&self, path: &str, payload: Value, headers: HashMap<String, String>) -> Result<Vec<String>, WebhookError>;
+    
+    fn get_webhook_by_path(&self, path: &str) -> Option<&WebhookEntry>;
+    
+    fn get_webhook_by_name(&self, name: &str) -> Option<&WebhookEntry>;
+    
+    fn get_rules_for_webhook(&self, webhook_name: &str) -> Vec<(String, &Rule)>;
 }

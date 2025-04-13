@@ -1,7 +1,6 @@
 mod config;
+mod app;
 mod logging;
-mod server;
-mod webhook;
 
 use anyhow::Result;
 use clap::Parser;
@@ -13,7 +12,7 @@ use std::path::PathBuf;
 #[clap(author, version, about)]
 struct Args {
     /// Path to the server configuration file
-    #[clap(short, long, value_parser, default_value = "server.yaml")]
+    #[clap(short, long, default_value = "server.yaml")]
     config: PathBuf,
 }
 
@@ -26,7 +25,7 @@ async fn main() -> Result<()> {
     let config = Config::load(&args.config)?;
 
     // run the server
-    server::run(config).await?;
+    app::run(config).await?;
 
     Ok(())
 }

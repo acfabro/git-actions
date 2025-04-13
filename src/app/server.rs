@@ -3,17 +3,17 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 use crate::config::Config;
-use crate::server::router;
+use crate::app::router;
 use axum::{routing::get, Router};
 use tokio::signal;
 use tracing::info;
 
 /// HTTP server for Git-Actions
-pub struct App {
+pub struct Server {
     config: Config,
 }
 
-impl App {
+impl Server {
     /// Create a new HTTP server with the given configuration
     pub fn new(config: &Config) -> Self {
         Self {
