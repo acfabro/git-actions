@@ -1,5 +1,8 @@
+use crate::app::webhooks::bitbucket::Bitbucket;
+use crate::app::webhooks::types::WebhookTypeHandler;
+use crate::app::Error::ToImplementError;
 use crate::app::{AppState, Error};
-use crate::config::{WebhookSpec, Rule};
+use crate::config::{Rule, WebhookSpec};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -13,27 +16,35 @@ use tracing::{debug, info};
 use Error::{RulesNotFoundForWebhook, WebhookNotFoundForPath};
 
 #[axum::debug_handler]
-pub async fn webhook(
+pub async fn handler(
     Path(path): Path<String>,
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, Error> {
     debug!("webhook: path={}, payload={:?}", path, payload);
 
-    // 1. Get the webhook config based on the path
-    let (webhook_name, _) = find_webhook(&state.config.webhooks, &path)?;
-
+    // Get the webhook config based on the path
+    let (webhook_name, webhook_config) = find_webhook(&state.config.webhooks, &path)?;
     info!("Processing webhook: {}", webhook_name);
 
-    // 2. Check if the payload contains the event type
+    // find rules subscribed to this webhook
     let webhook_rules = find_rules_for_webhook(&webhook_name, &state.config.rules)?;
-
-    // 3. Check if the payload contains the event type
     for (rule_name, rule) in webhook_rules.iter() {
         debug!("Rule: {}, Description: {:?}", rule_name, rule.description);
         debug!("Event types: {:?}", rule.event_types);
         debug!("Actions: {}", rule.actions.len());
     }
+
+    // TODO - use a factory to create the handler based on the webhook type
+    // Instantiate the webhook handler
+    let handler = Bitbucket {
+        config: webhook_config.bitbucket.unwrap_or_else(|| {
+            panic!("Bitbucket config is missing for webhook: {}", webhook_name)
+        }),
+        rules: webhook_rules,
+        payload,
+    };
+    handler.run().await?;
 
     // Return a success response
     Ok((

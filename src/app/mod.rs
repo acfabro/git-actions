@@ -1,11 +1,11 @@
-pub mod error;
 pub mod server;
 
-pub use error::Error;
+pub use crate::Error;
 
 mod handlers;
 mod router;
 mod logging;
+mod webhooks;
 
 use crate::config::{Config, ServerConfig};
 use anyhow::{Context, Result};

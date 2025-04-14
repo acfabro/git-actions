@@ -1,4 +1,4 @@
-use crate::app::{handlers, AppState};
+use crate::app::{handlers, webhooks, AppState};
 use axum::routing::{get, post};
 use axum::Router;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ pub fn create_router() -> Router<Arc<AppState>> {
         .route("/metrics", get(handlers::metrics))
 
         // webhook endpoint
-        .route("/webhook/{*path}", post(handlers::webhook))
+        .route("/webhook/{*path}", post(webhooks::handler))
 
         // add tracing layer for logging
         .layer(TraceLayer::new_for_http())

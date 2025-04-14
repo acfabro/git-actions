@@ -1,5 +1,8 @@
 mod config;
 mod app;
+mod error;
+
+pub use error::Error;
 
 use crate::config::ServerConfig;
 use anyhow::Result;

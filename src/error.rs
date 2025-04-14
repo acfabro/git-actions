@@ -6,6 +6,7 @@ use serde_json::json;
 pub enum Error {
     WebhookNotFoundForPath(String),
     RulesNotFoundForWebhook(String),
+    ToImplementError(String),
 }
 
 impl IntoResponse for Error {
@@ -19,6 +20,10 @@ impl IntoResponse for Error {
                 axum::http::StatusCode::NOT_FOUND,
                 format!("rules not found for webhook: {webhook_name}"),
             ),
+            _ => (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "internal server error".to_string(),
+            )
         };
 
         let body = axum::Json(json!({"error": error_message}));

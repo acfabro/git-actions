@@ -64,3 +64,9 @@ pub enum ConfigKind {
     Webhook,
     Rules,
 }
+
+impl WebhookConfig {
+    pub fn validate() {
+        // TODO: Implement validation logic
+    }
+}
