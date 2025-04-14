@@ -5,20 +5,16 @@ pub mod webhook_config;
 
 pub use rules_config::{Rule, RulesConfig};
 pub use server_config::ServerConfig;
-pub use webhook_config::WebhookConfig;
+pub use webhook_config::{WebhookConfig, WebhookSpec};
 
-use crate::config::rules_config::RulesSpec;
-use crate::config::webhook_config::WebhookSpec;
 use anyhow::{Context, Result};
 use glob::glob;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
-use tracing::field::debug;
 use tracing::{debug, warn};
 
 /// Configuration manager for Git-Actions
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Config {
     pub webhooks: HashMap<String, WebhookSpec>,
     pub rules: HashMap<String, Rule>,
@@ -40,14 +36,19 @@ impl Config {
                 let content = fs::read_to_string(&path)
                     .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
+                // TODO: is there a better way?
                 if content.contains("kind: Webhook") {
                     let webhook_config: WebhookConfig = serde_yaml::from_str(&content)
                         .with_context(|| {
                             format!("Failed to parse webhook config: {}", path.display())
                         })?;
 
-                    debug!("Adding webhook [{}]", webhook_config.metadata.name);
+                    debug!(
+                        "Adding webhook [{}] [{}]",
+                        webhook_config.metadata.name, webhook_config.spec.path
+                    );
                     webhooks.insert(webhook_config.metadata.name, webhook_config.spec);
+
                 } else if content.contains("kind: Rules") {
                     let rules_config: RulesConfig =
                         serde_yaml::from_str(&content).with_context(|| {

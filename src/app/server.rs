@@ -1,12 +1,9 @@
 use anyhow::{Context, Result};
-use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
 use crate::app::{router, AppState};
-use crate::config::{Config, RulesConfig, ServerConfig, WebhookConfig};
-use axum::{routing::get, Router};
+use crate::config::{Config, ServerConfig};
 use tokio::signal;
 use tracing::info;
 
@@ -42,8 +39,7 @@ impl Server {
 
         // add app state
         let state = AppState {
-            server_config: self.server_config.to_owned(),
-            app_config: self.app_config.to_owned(),
+            config: self.app_config.to_owned(),
         };
         let app = app.with_state(Arc::new(state));
 

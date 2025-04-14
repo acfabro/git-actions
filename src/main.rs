@@ -1,12 +1,10 @@
 mod config;
 mod app;
 
+use crate::config::ServerConfig;
 use anyhow::Result;
 use clap::Parser;
-use config::Config;
 use std::path::PathBuf;
-use crate::app::server::Server;
-use crate::config::ServerConfig;
 
 /// Git-Actions: A Rust-based automation tool for Git events
 #[derive(Parser, Debug)]

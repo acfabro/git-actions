@@ -24,11 +24,39 @@ pub struct WebhookSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bitbucket {
-    /// The base URL for the Bitbucket API
-    pub api_base_url: String,
+    /// Environment variable containing the token for webhook authentication
+    #[serde(rename = "tokenFromEnv")]
+    pub token_from_env: Option<String>,
 
-    /// The project key in Bitbucket
-    pub api_token: String,
+    /// API configuration for Bitbucket
+    pub api: BitbucketApi,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitbucketApi {
+    /// The base URL for the Bitbucket API
+    #[serde(rename = "baseUrl")]
+    pub base_url: String,
+
+    /// The project key/slug in Bitbucket
+    pub project: String,
+
+    /// The repository name/slug in Bitbucket
+    pub repo: String,
+
+    /// Authentication configuration for Bitbucket API
+    pub auth: BitbucketAuth,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitbucketAuth {
+    /// Authentication type (token, basic)
+    #[serde(rename = "type")]
+    pub auth_type: String,
+
+    /// Environment variable containing the API token
+    #[serde(rename = "tokenFromEnv")]
+    pub token_from_env: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

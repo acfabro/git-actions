@@ -1,33 +1,27 @@
-// use axum::{
-//     http::StatusCode,
-//     response::{IntoResponse, Response},
-//     Json,
-// };
-// use serde_json::json;
-// use thiserror::Error;
-//
-// /// Errors that can occur during webhook data extraction
-// #[derive(Debug, Error)]
-// pub enum WebhookDataError {
-//     #[error("Missing event type in payload")]
-//     MissingEventType,
-//
-//     #[error("Missing branch information in payload")]
-//     MissingBranch,
-// }
-//
-// /// Errors that can occur during webhook processing
-// #[derive(Debug, Error)]
-// pub enum WebhookError {
-// }
-//
-// // impl IntoResponse for WebhookError {
-// //     fn into_response(self) -> Response {
-// //         let (status, error_message) = match self {
-// //         };
-// //
-// //         let body = Json(json!({"error": error_message}));
-// //
-// //         (status, body).into_response()
-// //     }
-// // }
+use axum::response::{IntoResponse, Response};
+use serde_json::json;
+
+// TODO use thiserror
+#[derive(Debug)]
+pub enum Error {
+    WebhookNotFoundForPath(String),
+    RulesNotFoundForWebhook(String),
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        let (status, error_message) = match self {
+            Error::WebhookNotFoundForPath(path) => (
+                axum::http::StatusCode::NOT_FOUND,
+                format!("webhook not found for path: {path}"),
+            ),
+            Error::RulesNotFoundForWebhook(webhook_name) => (
+                axum::http::StatusCode::NOT_FOUND,
+                format!("rules not found for webhook: {webhook_name}"),
+            ),
+        };
+
+        let body = axum::Json(json!({"error": error_message}));
+        (status, body).into_response()
+    }
+}

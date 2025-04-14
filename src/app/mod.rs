@@ -1,6 +1,8 @@
 pub mod error;
 pub mod server;
 
+pub use error::Error;
+
 mod handlers;
 mod router;
 mod logging;
@@ -10,10 +12,9 @@ use anyhow::{Context, Result};
 use server::Server;
 
 /// Application state shared across request handlers
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppState {
-    pub server_config: ServerConfig,
-    pub app_config: Config,
+    pub config: Config,
 }
 
 /// Run the HTTP server with the given configuration

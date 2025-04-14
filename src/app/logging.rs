@@ -1,9 +1,7 @@
 use crate::config::server_config::LoggingSpec;
 use anyhow::Result;
-use std::path::Path;
 use tracing::info;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, fmt::SubscriberBuilder, EnvFilter};
+use tracing_subscriber::{fmt, EnvFilter};
 
 /// Sets up logging based on the server configuration
 pub fn setup(config: &Option<LoggingSpec>) -> Result<()> {

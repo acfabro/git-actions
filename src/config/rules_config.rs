@@ -63,6 +63,9 @@ pub enum BranchFilter {
     
     /// Regex branch name match
     Regex { regex: String },
+
+    // TODO: Implement negation logic
+    // Not { not: String },
 }
 
 /// Path filter
@@ -77,6 +80,9 @@ pub enum PathFilter {
     
     /// Regex path match
     Regex { regex: String },
+
+    // TODO: Implement negation logic
+    // Not { not: String },
 }
 
 /// Action configuration

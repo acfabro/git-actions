@@ -9,7 +9,7 @@ spec:
 
   # this webhook config is for receiving events from Bitbucket
   bitbucket:
-    # Environment variable containing the API token
+    # (Optional) Environment variable containing the API token. This is used by bitbucket to authenticate with this webhook.
     tokenFromEnv: "BITBUCKET_MYREPO_TOKEN"
 
     # API to call back to Bitbucket to get things like changed files, etc
