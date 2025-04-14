@@ -1,29 +1,36 @@
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 
-use crate::config::Config;
-use crate::app::router;
+use crate::app::{router, AppState};
+use crate::config::{Config, RulesConfig, ServerConfig, WebhookConfig};
 use axum::{routing::get, Router};
 use tokio::signal;
 use tracing::info;
 
 /// HTTP server for Git-Actions
 pub struct Server {
-    config: Config,
+    server_config: ServerConfig,
+    app_config: Config,
 }
 
 impl Server {
     /// Create a new HTTP server with the given configuration
-    pub fn new(config: &Config) -> Self {
-        Self {
-            config: config.to_owned(),
-        }
+    pub fn new(
+        server_config: ServerConfig,
+        app_config: Config,
+    ) -> Self {
+        Self { server_config, app_config }
     }
 
     /// Start the HTTP server
     pub async fn start(&mut self) -> Result<()> {
-        let addr = format!("{}:{}", self.config.server_config.spec.host, self.config.server_config.spec.port);
+        let host = self.server_config.spec.host.clone();
+        let port = self.server_config.spec.port;
+        let addr = format!("{}:{}", host, port);
+
         let listener = TcpListener::bind(&addr)
             .await
             .with_context(|| format!("Could not bind to {}", addr))?;
@@ -31,8 +38,16 @@ impl Server {
         info!("Server listening on {}", addr);
 
         // create a router
-        let app = router::create_router(&self.config).await?;
+        let app = router::create_router();
 
+        // add app state
+        let state = AppState {
+            server_config: self.server_config.to_owned(),
+            app_config: self.app_config.to_owned(),
+        };
+        let app = app.with_state(Arc::new(state));
+
+        // start the server
         axum::serve(listener, app)
             .with_graceful_shutdown(Self::shutdown_signal())
             .await

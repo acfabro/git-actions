@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// API version for configuration files
 pub type ApiVersion = String;
@@ -9,5 +8,5 @@ pub type ApiVersion = String;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Metadata {
     /// Name of the resource
-    pub name: Option<String>,
+    pub name: String,
 }

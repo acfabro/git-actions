@@ -1,6 +1,6 @@
 # Git-Actions rules configuration
 apiVersion: "git-actions/v1"
-kind: "RulesConfig"
+kind: Rules
 metadata:
   name: "default-rules"
 

@@ -18,7 +18,7 @@ The `ServerConfig` resource controls the main application server, including the 
 ```yaml
 # Example: server.yaml
 apiVersion: git-actions/v1
-kind: ServerConfig
+kind: Server
 metadata:  # Optional metadata for the server configuration
   name: "git-actions-server"
 spec:
@@ -47,7 +47,7 @@ The `WebhookConfig` resource defines a specific endpoint that receives webhooks 
 ```yaml
 # Example: webhooks/bitbucket-repo-a.yaml
 apiVersion: git-actions/v1
-kind: WebhookConfig
+kind: Webhook
 metadata:
   name: "bitbucket-repo-a"  # Unique name for this webhook configuration (string, required)
 spec:
@@ -81,7 +81,7 @@ The `RulesConfig` resource defines a set of rules that determine which actions t
 ```yaml
 # Example: rules.yaml
 apiVersion: git-actions/v1
-kind: RulesConfig
+kind: Rules
 metadata: # Optional metadata for the ruleset
   name: "default-rules"
 spec:
@@ -193,7 +193,7 @@ This requires three configuration parts:
 1.  **Server Config (`server.yaml`)**: Tells the server where to find the other configs.
     ```yaml
     apiVersion: git-actions/v1
-    kind: ServerConfig
+    kind: Server
     metadata:
       name: "main-server"
     spec:
@@ -209,7 +209,7 @@ This requires three configuration parts:
 2.  **Webhook Config (`webhooks/github-main-repo.yaml`)**: Defines the GitHub webhook endpoint.
     ```yaml
     apiVersion: git-actions/v1
-    kind: WebhookConfig
+    kind: Webhook
     metadata:
       name: "github-main-repo" # Name used in rules
     spec:
@@ -222,7 +222,7 @@ This requires three configuration parts:
 3.  **Rules Config (`rules/docker-rules.yaml`)**: Defines the rule to trigger the build.
     ```yaml
     apiVersion: git-actions/v1
-    kind: RulesConfig
+    kind: Rules
     metadata:
       name: "docker-build-rules"
     spec:
@@ -248,7 +248,7 @@ This requires three configuration parts:
 1.  **Server Config (`server.yaml`)**: (Similar to above, pointing to the relevant webhook and rule files)
     ```yaml
     apiVersion: git-actions/v1
-    kind: ServerConfig
+    kind: Server
     metadata:
       name: "git-actions-server"
     spec:
@@ -262,7 +262,7 @@ This requires three configuration parts:
 2.  **Webhook Config (`webhooks/bitbucket-monorepo.yaml`)**:
     ```yaml
     apiVersion: git-actions/v1
-    kind: WebhookConfig
+    kind: Webhook
     metadata:
       name: "bitbucket-monorepo"
     spec:
@@ -281,7 +281,7 @@ This requires three configuration parts:
 3.  **Rules Config (`rules/monorepo-tests.yaml`)**:
     ```yaml
     apiVersion: git-actions/v1
-    kind: RulesConfig
+    kind: Rules
     metadata:
       name: "monorepo-testing-rules"
     spec:

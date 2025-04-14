@@ -1,6 +1,6 @@
 # Example Bitbucket webhook configuration
 apiVersion: "git-actions/v1"
-kind: "WebhookConfig"
+kind: Webhook
 metadata:
   name: "bitbucket-repo-a"  # Unique name for this webhook configuration
 

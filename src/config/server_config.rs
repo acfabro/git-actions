@@ -62,8 +62,6 @@ pub struct TlsSpec {
 pub struct LoggingSpec {
     pub level: Option<String>,
     pub format: Option<String>,
-    /// Path to the log file. If not provided, logs will be written to stdout
-    pub file: Option<PathBuf>,
 }
 
 impl Default for LoggingSpec {
@@ -71,7 +69,6 @@ impl Default for LoggingSpec {
         Self {
             level: Some("INFO".to_string()),
             format: Some("text".to_string()),
-            file: None,
         }
     }
 }
@@ -84,7 +81,7 @@ mod tests {
     fn test_server_config_deserialize() {
         let yaml = r#"
         apiVersion: git-actions/v1
-        kind: ServerConfig
+        kind: Server
         metadata:
           name: "git-actions-server"
         spec:

@@ -4,3 +4,4 @@ pub mod metrics;
 
 pub use health::health_check;
 pub use metrics::metrics;
+pub use webhook::webhook;

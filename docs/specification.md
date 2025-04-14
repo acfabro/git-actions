@@ -177,7 +177,7 @@ Each rule consists of:
 Example rule structure:
 ```yaml
 apiVersion: git-actions/v1
-kind: RulesConfig
+kind: Rules
 metadata:
   name: "docker-build-rules"
 spec:
@@ -335,7 +335,7 @@ The tool uses a Kubernetes-inspired YAML schema with three main resource types:
 
 ```yaml
 apiVersion: git-actions/v1
-kind: ServerConfig
+kind: Server
 metadata:
   name: "git-actions-server"
 spec:
@@ -358,7 +358,7 @@ spec:
 
 ```yaml
 apiVersion: git-actions/v1
-kind: WebhookConfig
+kind: Webhook
 metadata:
   name: "bitbucket-repo-a"
 spec:
@@ -382,7 +382,7 @@ spec:
 
 ```yaml
 apiVersion: git-actions/v1
-kind: RulesConfig
+kind: Rules
 metadata:
   name: "default-rules"
 spec:

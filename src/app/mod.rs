@@ -1,29 +1,31 @@
 pub mod error;
-pub mod handlers;
-pub mod router;
 pub mod server;
 
-use crate::config::Config;
-use crate::logging;
-//use crate::webhook::Service;
+mod handlers;
+mod router;
+mod logging;
+
+use crate::config::{Config, ServerConfig};
 use anyhow::{Context, Result};
 use server::Server;
-use std::sync::Arc;
 
 /// Application state shared across request handlers
 #[derive(Clone)]
 pub struct AppState {
-    // pub webhook_service: Arc<Service>,
+    pub server_config: ServerConfig,
+    pub app_config: Config,
 }
 
 /// Run the HTTP server with the given configuration
-pub async fn run(config: Config) -> Result<()> {
+pub async fn run(server_config: ServerConfig) -> Result<()> {
     // Set up logging based on configuration
-    logging::setup(&config.server_config.spec.logging)
-        .with_context(|| "Failed to setup logging")?;
+    logging::setup(&server_config.spec.logging).with_context(|| "Failed to setup logging")?;
+
+    // Load application configuration
+    let app_config = Config::load(&server_config.spec.configs)?;
 
     // Create HTTP server
-    Server::new(&config).start().await?;
+    Server::new(server_config, app_config).start().await?;
 
     Ok(())
 }

@@ -3,43 +3,35 @@ pub mod rules_config;
 pub mod server_config;
 pub mod webhook_config;
 
+pub use rules_config::{Rule, RulesConfig};
+pub use server_config::ServerConfig;
+pub use webhook_config::WebhookConfig;
+
+use crate::config::rules_config::RulesSpec;
+use crate::config::webhook_config::WebhookSpec;
 use anyhow::{Context, Result};
 use glob::glob;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use tracing::warn;
-pub use rules_config::{Rule, RulesConfig};
-pub use server_config::ServerConfig;
-pub use webhook_config::WebhookConfig;
+use tracing::field::debug;
+use tracing::{debug, warn};
 
 /// Configuration manager for Git-Actions
 #[derive(Clone)]
-pub struct Config{
-    pub server_config: ServerConfig,
-    pub webhooks: HashMap<String, WebhookConfig>,
+pub struct Config {
+    pub webhooks: HashMap<String, WebhookSpec>,
     pub rules: HashMap<String, Rule>,
 }
 
 impl Config {
     /// Load configuration from a server config file
-    pub fn load(server_config_path: &Path) -> Result<Self> {
-        // Load server config
-        let server_config = ServerConfig::from_file(&server_config_path.to_path_buf())?;
-
-        // Load webhook configs
+    pub fn load(path: &Vec<String>) -> Result<Self> {
+        // Load all configs
         let mut webhooks = HashMap::new();
         let mut rules = HashMap::new();
-
-        for pattern in &server_config.spec.configs {
-            // Resolve the pattern relative to the server config directory
-            // let base_dir = server_config_path
-            //     .parent()
-            //     .unwrap_or(Path::new("."));
-            // let full_pattern = base_dir.join(pattern);
-            // let pattern_str = full_pattern.to_string();
-
-            // Handle glob patterns
+        for pattern in path {
+            // for each pattern handle glob patterns
             let paths = glob(&pattern)
                 .with_context(|| format!("Failed to resolve glob pattern: {}", pattern))?;
 
@@ -54,60 +46,36 @@ impl Config {
                             format!("Failed to parse webhook config: {}", path.display())
                         })?;
 
-                    webhooks.insert("a".to_string(), webhook_config);
-
+                    debug!("Adding webhook [{}]", webhook_config.metadata.name);
+                    webhooks.insert(webhook_config.metadata.name, webhook_config.spec);
                 } else if content.contains("kind: Rules") {
                     let rules_config: RulesConfig =
                         serde_yaml::from_str(&content).with_context(|| {
                             format!("Failed to parse rules config: {}", path.display())
                         })?;
 
-                    rules.extend(Self::extract_rules(&rules_config));
+                    let set_rules = Self::extract_rules(&rules_config).with_context(|| {
+                        format!("Failed to extract rules from config: {}", path.display())
+                    })?;
 
+                    rules.extend(set_rules);
                 } else {
                     warn!("Skipping config file with unknown type: {}", path.display());
                 }
-
-
-                // // Determine the kind of configuration
-                // if content.contains("kind: WebhookConfig") {
-                //     let webhook_config: WebhookConfig = serde_yaml::from_str(&content)
-                //         .with_context(|| {
-                //             format!("Failed to parse webhook config: {}", path.display())
-                //         })?;
-                //
-                //     // TODO Validate the webhook config
-                //
-                //     // Get the webhook name
-                //     let name = webhook_config.name().with_context(|| {
-                //         format!("Invalid webhook config name: {}", path.display())
-                //     })?;
-                //
-                //     webhooks.insert(name.to_string(), webhook_config);
-                // } else if content.contains("kind: RulesConfig") {
-                //     let rules_config: RulesConfig =
-                //         serde_yaml::from_str(&content).with_context(|| {
-                //             format!("Failed to parse rules config: {}", path.display())
-                //         })?;
-                //
-                //     // Add rules to the map
-                //     rules.extend(rules_config.spec.rules);
-                // }
             }
         }
 
-        Ok(Self {
-            server_config,
-            webhooks,
-            rules,
-        })
+        Ok(Self { webhooks, rules })
     }
 
-    fn extract_rules(rules_config: &RulesConfig) -> HashMap<String, Rule> {
+    fn extract_rules(rules_config: &RulesConfig) -> Result<HashMap<String, Rule>> {
         let mut rules = HashMap::new();
-        for rule in rules_config.spec.clone().rules {
-            rules.insert(rule.0.clone(), rule.1.clone());
+        for (name, rule) in rules_config.spec.rules.iter() {
+            let rule_name = format!("{}-{}", rules_config.metadata.name, name);
+
+            debug!("Adding rule [{}]", rule_name);
+            rules.insert(rule_name, rule.clone());
         }
-        rules
+        Ok(rules)
     }
 }

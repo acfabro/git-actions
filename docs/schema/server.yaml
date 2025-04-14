@@ -1,6 +1,6 @@
 # Server configuration for Git-Actions
 apiVersion: "git-actions/v1"
-kind: "ServerConfig"
+kind: Server
 metadata:
   name: "git-actions-server"
 

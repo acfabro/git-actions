@@ -1,6 +1,6 @@
 # Git-Actions rules configuration for Project A
 apiVersion: git-actions/v1
-kind: RulesConfig
+kind: Rules
 
 # Configuration specification
 spec:

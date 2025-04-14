@@ -1,11 +1,12 @@
 mod config;
 mod app;
-mod logging;
 
 use anyhow::Result;
 use clap::Parser;
 use config::Config;
 use std::path::PathBuf;
+use crate::app::server::Server;
+use crate::config::ServerConfig;
 
 /// Git-Actions: A Rust-based automation tool for Git events
 #[derive(Parser, Debug)]
@@ -22,7 +23,8 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // Load configuration
-    let config = Config::load(&args.config)?;
+    // let config = Config::load(&args.config)?;
+    let config = ServerConfig::from_file(&args.config)?;
 
     // run the server
     app::run(config).await?;

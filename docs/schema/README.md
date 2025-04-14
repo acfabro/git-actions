@@ -43,7 +43,7 @@ The `server.yaml` file configures the HTTP server that listens for webhook event
 ```yaml
 # Server configuration for Git-Actions
 apiVersion: "git-actions/v1"
-kind: "ServerConfig"
+kind: Server
 metadata:
   name: "git-actions-server"
 
@@ -70,7 +70,7 @@ Each webhook has its own configuration file that defines its endpoint, type, and
 ```yaml
 # Example Bitbucket webhook configuration
 apiVersion: "git-actions/v1"
-kind: "WebhookConfig"
+kind: Webhook
 metadata:
   name: "bitbucket-repo-a"  # Unique name referenced by rules
 
@@ -99,7 +99,7 @@ The `rules.yaml` file defines rules that respond to Git events from specific web
 ```yaml
 # Git-Actions rules configuration
 apiVersion: "git-actions/v1"
-kind: "RulesConfig"
+kind: Rules
 metadata:
   name: "default-rules"
 

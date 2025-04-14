@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::config::common::{ApiVersion, Metadata};
+use crate::config::webhook_config::ConfigKind;
 
 /// Rules configuration for Git-Actions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,10 +12,10 @@ pub struct RulesConfig {
     pub api_version: ApiVersion,
     
     /// Kind of the configuration
-    pub kind: String,
+    pub kind: ConfigKind,
     
     /// Metadata for the configuration
-    pub metadata: Option<Metadata>,
+    pub metadata: Metadata,
     
     /// Configuration specification
     pub spec: RulesSpec,
@@ -118,13 +119,14 @@ pub struct ShellAction {
 mod tests {
     use super::*;
     use serde_yaml;
-    
+    use crate::config::webhook_config::ConfigKind;
+
     #[test]
     fn test_deserialize() {
         let yaml = r#"
 # Git-Actions rules configuration for Project A
 apiVersion: git-actions/v1
-kind: RulesConfig
+kind: Rules
 metadata:
   name: "default-rules"
 
@@ -296,8 +298,8 @@ spec:
         metadata.name = Some("default-rules".to_string());
 
         let config = RulesConfig {
-            api_version: ApiVersion::V1,
-            kind: "RulesConfig".to_string(),
+            api_version: "git-actions/v1".into(),
+            kind: ConfigKind::RulesConfig,
             metadata: Some(metadata),
             spec: RulesSpec {
                 rules,
