@@ -1,0 +1,48 @@
+[package]
+name = "git-actions"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust-based automation tool for Git events"
+authors = ["Your Name <your.email@example.com>"]
+
+[[bin]]
+name = "git-actions"
+path = "src/main.rs"
+
+[dependencies]
+# HTTP server
+axum = { version = "0.8.3", features = ["macros"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+
+# Async runtime
+tokio = { version = "1.28", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Error handling
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Config
+clap = { version = "4.2", features = ["derive"] }
+glob = "0.3"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Other utilities
+async-trait = "0.1"
+bitbucket-server-rs = "0.5.1"
+wildmatch = "2.4.0"
+regex = "1.11.1"
+jsonpath-rust = "1.0.1"
+strum = "0.27.1"
+strum_macros = "0.27.1"
+log = "0.4.25"
