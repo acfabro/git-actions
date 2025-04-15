@@ -1,14 +1,16 @@
 # Git-Actions Configuration Schema
 
-This directory contains the configuration schema for the Git-Actions tool, which is designed to listen for Git events and execute configurable actions based on customizable rules.
+This directory contains the configuration schema for the Git-Actions tool, which is designed to listen for Git events and execute configurable actions based on customizable rules. Git-Actions uses three main kinds of configuration files:
 
-## Directory Structure
+1. **Server** (`kind: Server`): Configures the HTTP server that listens for webhook events
+2. **Webhook** (`kind: Webhook`): Defines webhook endpoints and authentication for different Git platforms
+3. **Rules** (`kind: Rules`): Defines rules that respond to Git events with configurable actions
 
-- **`server.yaml`**: Server configuration schema for the HTTP listener
-- **`webhook.yaml`**: Example webhook configuration
-- **`rules.yaml`**: Rules configuration schema
-- **`schema.md`**: Detailed schema documentation with types, descriptions, and examples
-- **`examples/`**: Example configurations for specific use cases
+## Example Configuration Files
+
+- [**`server.yaml`**](server.yaml): Server configuration schema for the HTTP listener
+- [**`webhook.yaml`**](webhook.yaml): Example webhook configuration
+- [**`rules.yaml`**](rules.yaml): Rules configuration schema
 
 ## Key Features of the Schema
 
@@ -19,7 +21,7 @@ This directory contains the configuration schema for the Git-Actions tool, which
 
 2. **Type-Specific Webhook Handlers**:
    - Each webhook has its own configuration file
-   - Support for different webhook types (Bitbucket, GitHub, etc.) with type-specific sections
+   - Support for different webhook types (Bitbucket only for now) with type-specific sections
    - Type-specific API configurations for external calls
    - Flexible authentication options
 
@@ -29,8 +31,7 @@ This directory contains the configuration schema for the Git-Actions tool, which
    - Reference to specific webhooks by name
    - Centralized rule evaluation
 
-4. **Variable Templating**:
-   - Uses Tera templating engine (similar to Jinja2/Django)
+4. **Variable Templating (TODO)**:
    - Access to event data and environment variables
    - Template interpolation in commands, URLs, and payloads
 
@@ -134,9 +135,8 @@ For detailed information about all configuration options, refer to `schema.md` w
 - Data types and requirements
 - Examples of common patterns
 
-## Implementation Notes
+## Variable Substitution
 
-- Text templating is provided by the [Tera](https://keats.github.io/tera/) crate
 - Variable substitution uses double curly braces: `{{ variable }}`
 - Event data is accessed with the `event` prefix: `{{ event.branch }}`
 - Original payload data is available at `{{ event.payload }}`
