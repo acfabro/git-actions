@@ -5,6 +5,10 @@ edition = "2021"
 description = "A Rust-based automation tool for Git events"
 authors = ["Your Name <your.email@example.com>"]
 
+[[bin]]
+name = "git-actions"
+path = "src/main.rs"
+
 [dependencies]
 # HTTP server
 axum = { version = "0.8.3", features = ["macros"] }
@@ -18,16 +22,13 @@ tokio = { version = "1.28", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
-tracing-serde = "0.2"
 
 # Error handling
 anyhow = "1.0"
-thiserror = "2.0.12"
 
 # Logging and tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-tracing-appender = "0.2"
 
 # Config
 clap = { version = "4.2", features = ["derive"] }
@@ -36,7 +37,7 @@ glob = "0.3"
 # HTTP client
 reqwest = { version = "0.11", features = ["json"] }
 
-# Async utilities
+# Other utilities
 async-trait = "0.1"
 bitbucket-server-rs = "0.5.1"
 wildmatch = "2.4.0"

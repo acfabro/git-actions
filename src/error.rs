@@ -28,6 +28,10 @@ impl IntoResponse for Error {
                 axum::http::StatusCode::BAD_REQUEST,
                 format!("webhook payload error: {message}"),
             ),
+            Error::ActionError(message) => (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("action error: {message}"),
+            ),
             _ => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 "internal server error".to_string(),

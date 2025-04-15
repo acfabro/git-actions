@@ -1,6 +1,7 @@
 use crate::app::webhooks::bitbucket::Bitbucket;
 use crate::app::webhooks::types::WebhookTypeHandler;
 use crate::app::{AppState, Error};
+use crate::config::rules_config::{Action, HttpAction};
 use crate::config::{Rule, WebhookSpec};
 use axum::{
     extract::{Path, State},
@@ -11,10 +12,8 @@ use axum::{
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use log::warn;
-use tracing::debug;
+use tracing::{debug, error};
 use Error::{RulesNotFoundForWebhook, WebhookNotFoundForPath};
-use crate::config::rules_config::{Action, HttpAction};
 
 #[axum::debug_handler]
 pub async fn handler(
@@ -100,14 +99,16 @@ fn find_rules_for_webhook<'a>(
 async fn exec_actions(actions: Vec<&Action>) -> Result<(), Error> {
     for action in actions {
         if let Some(http) = &action.http {
+            // TODO tracing
             exec_http_action(http).await?;
         }
-        if let Some(shell) = &action.shell {
+        if let Some(_shell) = &action.shell {
             // TODO implement shell action
-            warn!("Shell action is not implemented yet");
+            error!("Shell action is not implemented yet");
         }
     }
 
+    // TODO return some details about the action
     Ok(())
 }
 
@@ -129,28 +130,30 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
     };
 
     // set headers if present
-    let client = if let Some(headers) = &action.headers {
-        let mut client = client;
-        for (key, value) in headers.iter() {
-            client = client.header(key, value);
+    let client = match &action.headers {
+        Some(headers) => {
+            let mut client = client;
+            for (key, value) in headers.iter() {
+                client = client.header(key, value);
+            }
+            client
         }
-        client
-    } else {
-        client
+        None => client,
     };
 
     // set body if present
-    let client = if let Some(body) = &action.body {
-        client.body(body.to_owned())
-    } else {
-        client
+    let client = match &action.body {
+        Some(body) => client.body(body.to_owned()),
+        None => client,
     };
 
     // send the request
-    let response = client
-        .send()
-        .await
-        .map_err(|e| Error::ActionError(format!("HTTP request failed: {}", e)))?;
+    let response = client.send().await;
+
+    let response = match response {
+        Ok(resp) => resp,
+        Err(err) => return Err(Error::ActionError(format!("HTTP request failed: {}", err))),
+    };
 
     debug!("Action status: {}", response.status());
 

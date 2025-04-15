@@ -118,5 +118,5 @@ pub struct ShellAction {
     pub command: String,
     
     /// Working directory
-    pub working_dir: String,
+    pub working_dir: Option<String>,
 }
