@@ -1,6 +1,7 @@
 # Git-Actions
 
-A Rust-based automation tool that listens for Git events (like pushes, pull requests) from platforms such as Bitbucket and executes configurable actions based on customizable rules.
+A Rust-based automation tool that listens for Git events (like pushes, pull requests) from platforms such as Bitbucket
+and executes configurable actions based on customizable rules.
 
 ## Features
 
@@ -12,49 +13,25 @@ A Rust-based automation tool that listens for Git events (like pushes, pull requ
 
 ## Configuration
 
-Git-Actions uses YAML configuration files:
+For config documentation, see [Configuration](docs/schema/README.md).
 
-1. **Server Configuration** (`server.yaml`): Configures the HTTP server that listens for webhook events
-2. **Webhook Configurations** (`webhooks/*.yaml`): Defines webhook endpoints and authentication
-3. **Rules Configuration** (`rules.yaml`): Defines rules that respond to Git events
+## Running the app
 
-For detailed schema documentation, see [Configuration Schema](docs/schema/README.md).
-
-### Basic Configuration Example
-
-```yaml
-# server.yaml
-apiVersion: git-actions/v1
-kind: Server
-metadata:
-  name: "git-actions-server"
-spec:
-  port: 8080
-  host: "0.0.0.0"
-  logging:
-    level: "INFO"
-  configs:
-    - "webhooks/*.yaml"
-    - "rules.yaml"
-```
-
-## Running with Docker
-
-### Using Pre-built Image
+Assuming you already have the requisite yaml config files, to compile and install:
 
 ```bash
-# Pull the image
-docker pull your-registry/git-actions:latest
+cargo install --path .
 
-# Run with configuration mounted from host
-docker run -p 8080:8080 \
-  -v $(pwd)/server.yaml:/server.yaml \
-  -v $(pwd)/rules.yaml:/rules.yaml \
-  -v $(pwd)/webhooks:/webhooks \
-  your-registry/git-actions:latest
+git-actions -c /path/to/config.yaml
 ```
 
-### Building the Docker Image
+To just run the app without installing, you can use:
+
+```bash
+cargo run -- -c /path/to/config.yaml
+```
+
+With docker:
 
 ```bash
 # Build the image
@@ -64,30 +41,8 @@ docker build -t git-actions .
 docker run -p 8080:8080 \
   -v $(pwd)/server.yaml:/server.yaml \
   -v $(pwd)/rules.yaml:/rules.yaml \
-  -v $(pwd)/webhooks:/webhooks \
+  -v $(pwd)/webhooks.yaml:/webhooks.yaml \
   git-actions
-```
-
-### Environment Variables
-
-When using Docker, you can pass environment variables for webhook tokens and API authentication:
-
-```bash
-docker run -p 8080:8080 \
-  -v $(pwd)/config:/config \
-  -e BITBUCKET_API_TOKEN=your_token \
-  -e BITBUCKET_MYREPO_TOKEN=webhook_token \
-  your-registry/git-actions:latest
-```
-
-## Running Locally
-
-```bash
-# Run with default configuration (server.yaml in current directory)
-git-actions
-
-# Run with custom configuration file
-git-actions --config /path/to/server.yaml
 ```
 
 ## Command-line Options
@@ -98,11 +53,12 @@ git-actions --config /path/to/server.yaml
 
 ## Planned TODOs
 
-1. Add more webhook types (GitHub, GitLab, etc.)
-2. Implement more action types (shell, kubernetes, etc)
-3. Action queueing and retry logic
-4. Implement as a Kubernetes operator (?)
-5. A lot of `TODO`s in the code
+1. Templating for dynamic values
+2. Add more webhook types (GitHub, GitLab, etc.)
+3. Implement more action types (shell, kubernetes, etc)
+4. Action queueing and retry logic
+5. Implement as a Kubernetes operator (?)
+6. A lot of `TODO`s in the code
 
 ## License
 
