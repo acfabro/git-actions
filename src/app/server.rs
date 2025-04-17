@@ -9,8 +9,8 @@ use tracing::info;
 
 /// HTTP server for Git-Actions
 pub struct Server {
-    server_config: ServerConfig,
-    app_config: Config,
+    pub(crate) server_config: ServerConfig,
+    pub(crate) app_config: Config,
 }
 
 impl Server {

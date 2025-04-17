@@ -54,11 +54,12 @@ docker run -p 8080:8080 \
 ## Planned TODOs
 
 1. Templating for dynamic values
-2. Add more webhook types (GitHub, GitLab, etc.)
+2. Improved error handling
 3. Implement more action types (shell, kubernetes, etc)
 4. Action queueing and retry logic
-5. Implement as a Kubernetes operator (?)
-6. A lot of `TODO`s in the code
+5. Implement as a Kubernetes operator
+6. Add more webhook types (GitHub, GitLab, etc.) (?)
+7. A lot of `TODO`s in the code
 
 ## License
 
