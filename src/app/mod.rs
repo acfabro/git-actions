@@ -7,6 +7,9 @@ mod router;
 mod logging;
 mod webhooks;
 
+#[cfg(test)]
+mod tests;
+
 use crate::config::{Config, ServerConfig};
 use anyhow::{Context, Result};
 use server::Server;

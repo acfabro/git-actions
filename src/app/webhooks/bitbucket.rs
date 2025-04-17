@@ -190,13 +190,8 @@ mod tests {
     use crate::config::webhook_config::{BitbucketApi, BitbucketAuth};
     use serde_json::json;
 
-    #[tokio::test]
-    async fn test_can_get_event_type() {
-        let payload = json!({
-            "eventKey": "pr:modified"
-        });
-
-        let bitbucket = Bitbucket {
+    fn create_test_bitbucket(payload: Value) -> Bitbucket<'static> {
+        Bitbucket {
             config: crate::config::webhook_config::Bitbucket {
                 token_from_env: None,
                 api: BitbucketApi {
@@ -211,9 +206,97 @@ mod tests {
             },
             rules: HashMap::new(),
             payload,
-        };
+        }
+    }
+
+    #[tokio::test]
+    async fn test_can_get_event_type() {
+        let payload = json!({
+            "eventKey": "pr:modified"
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
 
         let event_type = bitbucket.extract_event_type().await;
         assert_eq!(event_type.unwrap(), EventType::PRModified);
     }
+
+    #[tokio::test]
+    async fn test_extract_event_type_created() {
+        let payload = json!({
+            "eventKey": "pr:created"
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let event_type = bitbucket.extract_event_type().await;
+        assert_eq!(event_type.unwrap(), EventType::PRCreated);
+    }
+
+    #[tokio::test]
+    async fn test_extract_event_type_merged() {
+        let payload = json!({
+            "eventKey": "pr:merged"
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let event_type = bitbucket.extract_event_type().await;
+        assert_eq!(event_type.unwrap(), EventType::PRMerged);
+    }
+
+    #[tokio::test]
+    async fn test_extract_event_type_invalid() {
+        let payload = json!({
+            "eventKey": "pr:unknown"
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let event_type = bitbucket.extract_event_type().await;
+        assert!(event_type.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_event_type_missing() {
+        let payload = json!({
+            "someOtherKey": "value"
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let event_type = bitbucket.extract_event_type().await;
+        assert!(event_type.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_branch() {
+        let payload = json!({
+            "pullRequest": {
+                "fromRef": {
+                    "displayId": "feature/test-branch"
+                }
+            }
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let branch = bitbucket.extract_branch().await;
+        assert_eq!(branch.unwrap(), "feature/test-branch");
+    }
+
+    #[tokio::test]
+    async fn test_extract_branch_missing() {
+        let payload = json!({
+            "pullRequest": {
+                "someOtherKey": "value"
+            }
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let branch = bitbucket.extract_branch().await;
+        assert!(branch.is_err());
+    }
+
 }

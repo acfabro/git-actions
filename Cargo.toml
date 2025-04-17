@@ -3,7 +3,6 @@ name = "git-actions"
 version = "0.1.0"
 edition = "2021"
 description = "A Rust-based automation tool for Git events"
-authors = ["Your Name <your.email@example.com>"]
 
 [[bin]]
 name = "git-actions"
@@ -46,3 +45,6 @@ jsonpath-rust = "1.0.1"
 strum = "0.27.1"
 strum_macros = "0.27.1"
 log = "0.4.25"
+
+[dev-dependencies]
+tempfile = "3.19.1"
