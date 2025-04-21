@@ -1,0 +1,45 @@
+# Server configuration for Git-Actions
+apiVersion: "git-actions/v1"
+kind: Server
+metadata:
+  name: "git-actions-server"
+
+spec:
+  port: 8080                # Port number for the HTTP server
+  host: "0.0.0.0"           # Host binding address
+
+  # TODO - Add TLS configuration
+  #  tls:                      # Optional TLS configuration
+  #    enabled: false
+  #    cert_file: "/path/to/cert.pem"
+  #    key_file: "/path/to/key.pem"
+  
+  logging:
+    level: "INFO"           # Optional log level: ERROR, WARN, INFO, DEBUG, TRACE. Default is INFO
+    format: "json"          # Optional log format: text, json. Default is text
+    file: "/var/log/git-actions.log" # Optional log file, default is stdout
+
+  config_files:             # Globs pointing to Webhook and Rules config files
+    - "webhooks/*.yaml"     # Load all webhook configurations
+    - "rules.yaml"          # Load rules configuration
+---
+apiVersion: git-actions/v1
+kind: Server
+metadata:
+  name: "git-actions-server"
+  labels:
+    environment: "development"
+spec:
+  port: 8080
+  host: "0.0.0.0"
+  tls:
+    enabled: false
+    cert_file: "cert.pem"
+    key_file: "key.pem"
+  logging:
+    level: "DEBUG"
+    format: "text"
+    # file: "logs/git-actions.log"
+  configs:
+    - "webhooks/*.yaml"
+    - "rules.yaml"

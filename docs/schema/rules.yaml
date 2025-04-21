@@ -1,0 +1,105 @@
+# Git-Actions rules configuration
+apiVersion: "git-actions/v1"
+kind: Rules
+metadata:
+  name: "default-rules"
+
+spec:
+
+  # Rules for event matching and action execution
+  rules:
+    # Example rule 1: Docker build on Dockerfile changes
+    "docker-build":
+      description: "Trigger Docker build when Dockerfile changes"
+      webhooks:                 # References to WebhookConfig resources by name
+        - "bitbucket-repo-a"
+        - "github-secondary"
+      event_types:              # Event types to match
+        - "push"
+        - "pull_request_merged"
+      branches:                 # Branch filters (any can match)
+        - exact: "main"
+        - pattern: "feature/*"
+        - regex: "^release-\\d+\\.\\d+$"
+      paths:                    # Path filters (any can match)
+        - exact: "Dockerfile"
+        - pattern: "docker/**/*"
+        - regex: ".*\\.dockerfile$"
+      actions:                  # Actions to execute when rule matches
+        # HTTP action example
+        - http:
+            url: "https://ci-server/api/build"
+            method: "POST"
+            headers:
+              Content-Type: "application/json"
+              Authorization: "Bearer {{ env.CI_API_TOKEN }}"
+            body: |
+              {
+                "repository": "{{ event.payload.repository.name }}",
+                "branch": "{{ event.branch }}",
+                "files": {{ event.changed_files | json_encode() }}
+              }
+
+        # Shell command action example
+        - shell:
+            command: "docker build -t myapp:{{ event.branch }} ."
+            working_dir: "/path/to/repo"
+            environment:
+              API_KEY: "{{ env.API_KEY }}"
+              DEBUG: "true"
+
+    # Example rule 2: Run tests on PR creation
+    "pr-tests":
+      description: "Run tests when a PR is created or updated"
+      webhooks:
+        - "github-main"
+      event_types:
+        - "pull_request_opened"
+        - "pull_request_updated"
+      actions:
+        - shell:
+            command: "npm test"
+            working_dir: "./app"
+
+    # Example rule 3: Service-specific deployment for monorepo
+    "frontend-deploy":
+      description: "Deploy frontend when changes are made to frontend code"
+      webhooks:
+        - "bitbucket-repo-a"
+      event_types:
+        - "push"
+      branches:
+        - exact: "main"
+      paths:
+        - pattern: "frontend/**/*"
+      actions:
+        - shell:
+            command: "cd frontend && npm run deploy"
+            environment:
+              DEPLOY_TOKEN: "{{ env.FRONTEND_DEPLOY_TOKEN }}"
+
+    # Example rule 4: Monorepo microservice build
+    "microservice-build":
+      description: "Build specific microservice when its code changes"
+      webhooks:
+        - "github-main"
+        - "gitlab-endpoint"
+      event_types:
+        - "push"
+      branches:
+        - exact: "develop"
+        - exact: "main"
+      paths:
+        - pattern: "services/user-service/**/*"
+      actions:
+        - shell:
+            command: "cd services/user-service && make build"
+        - http:
+            url: "https://ci-server/api/notify"
+            method: "POST"
+            body: |
+              {
+                "service": "user-service",
+                "status": "building",
+                "commit": "{{ event.payload.commit.hash }}"
+              }
