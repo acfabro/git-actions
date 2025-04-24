@@ -118,7 +118,7 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
     let client = reqwest::Client::new();
 
     // set request method
-    let client = match action.method.to_uppercase().as_str() {
+    let mut client = match action.method.to_uppercase().as_str() {
         "GET" => client.get(&action.url),
         "POST" => client.post(&action.url),
         _ => {
@@ -129,31 +129,23 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
         }
     };
 
-    // set headers if present
-    let client = match &action.headers {
-        Some(headers) => {
-            let mut client = client;
-            for (key, value) in headers.iter() {
-                client = client.header(key, value);
-            }
-            client
+    // headers
+    if let Some(headers) = &action.headers {
+        for (key, value) in headers.iter() {
+            client = client.header(key, value);
         }
-        None => client,
-    };
+    }
 
-    // set body if present
-    let client = match &action.body {
-        Some(body) => client.body(body.to_owned()),
-        None => client,
-    };
+    // body
+    if let Some(body) = &action.body {
+        client = client.body(body.to_owned());
+    }
 
     // send the request
-    let response = client.send().await;
-
-    let response = match response {
-        Ok(resp) => resp,
-        Err(err) => return Err(Error::ActionError(format!("HTTP request failed: {}", err))),
-    };
+    let response = client
+        .send()
+        .await
+        .map_err(|e| Error::ActionError(e.to_string()))?;
 
     debug!("Action status: {}", response.status());
 

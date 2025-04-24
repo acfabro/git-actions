@@ -177,6 +177,7 @@ fn event_type_from_str(str: &str) -> Result<EventType, Error> {
         "pr:created" => Ok(EventType::PRCreated),
         "pr:modified" => Ok(EventType::PRModified),
         "pr:merged" => Ok(EventType::PRMerged),
+        // TODO other event types
         _ => Err(Error::WebhookPayloadError(format!(
             "Unknown event type {}",
             str
