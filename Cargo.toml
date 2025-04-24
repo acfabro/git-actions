@@ -1,8 +1,12 @@
 [package]
 name = "git-actions"
-version = "0.1.0"
+version = "0.2.1"
 edition = "2021"
-description = "A Rust-based automation tool for Git events"
+description = "An automation tool for Git events"
+
+[lib]
+name = "git_actions"
+path = "src/lib.rs"
 
 [[bin]]
 name = "git-actions"
@@ -11,7 +15,6 @@ path = "src/main.rs"
 [dependencies]
 # HTTP server
 axum = { version = "0.8.3", features = ["macros"] }
-tower = "0.5.2"
 tower-http = { version = "0.6.2", features = ["cors", "trace"] }
 
 # Async runtime
@@ -41,10 +44,8 @@ async-trait = "0.1"
 bitbucket-server-rs = "0.5.1"
 wildmatch = "2.4.0"
 regex = "1.11.1"
-jsonpath-rust = "1.0.1"
-strum = "0.27.1"
 strum_macros = "0.27.1"
-log = "0.4.25"
 
 [dev-dependencies]
 tempfile = "3.19.1"
+wiremock = "0.6"

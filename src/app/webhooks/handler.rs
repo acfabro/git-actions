@@ -1,15 +1,21 @@
-use crate::app::webhooks::bitbucket::Bitbucket;
-use crate::app::webhooks::types::WebhookTypeHandler;
-use crate::app::{AppState, Error};
-use crate::config::rules_config::{Action, HttpAction};
-use crate::config::{Rule, WebhookSpec};
+use crate::app::{
+    config::{
+        rules::{Action, HttpAction, Rule},
+        WebhookConfig,
+    },
+    webhooks::bitbucket::Bitbucket,
+    webhooks::types::WebhookTypeHandler,
+    AppState,
+    Error,
+    Error::HandlerError,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error};
@@ -19,34 +25,39 @@ use Error::{RulesNotFoundForWebhook, WebhookNotFoundForPath};
 pub async fn handler(
     Path(path): Path<String>,
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<Value>,
 ) -> Result<impl IntoResponse, Error> {
-    debug!("Handler: path={}, payload={:?}", path, payload);
+    debug!("Handler path={}", path);
+    debug!("Handler payload={}", payload.to_string());
 
     // Get the webhook config based on the path
-    let (webhook_name, webhook_config) = find_webhook(&state.config.webhooks, &path)?;
-    debug!("Handler webhook: {}", webhook_name);
+    let webhook_config = state
+        .config
+        .find_webhook_by_path(&path)
+        .map_err(|_| WebhookNotFoundForPath(path.to_string()))?;
+    debug!("Handler webhook: {}", webhook_config.metadata.name);
 
     // find rules subscribed to this webhook
-    let webhook_rules = find_rules_for_webhook(&webhook_name, &state.config.rules)?;
+    let webhook_rules = state
+        .config
+        .find_rules_by_webhook(&webhook_config.metadata.name)
+        .map_err(|_| RulesNotFoundForWebhook(webhook_config.metadata.name.to_string()))?;
     for (rule_name, rule) in webhook_rules.iter() {
         debug!(
-            "Handler rule: {}, Description: {:?}",
-            rule_name, rule.description
+            "Handler rule: {}, Description: {}",
+            rule_name,
+            rule.description.to_owned().unwrap_or("".to_string())
         );
     }
 
     // TODO - use a factory to create the handler based on the webhook type
-    // Instantiate the webhook handler
-    let handler = Bitbucket {
-        config: webhook_config.bitbucket.unwrap_or_else(|| {
-            // TODO implement config validation
-            panic!("Bitbucket config is missing for webhook: {}", webhook_name)
-        }),
-        rules: webhook_rules,
-        payload,
-    };
-    let actions = handler.run().await?;
+    let handler = create_bitbucket_handler(payload, webhook_config.to_owned(), webhook_rules)?;
+
+    // run the webhook handler
+    let actions = handler
+        .run()
+        .await
+        .map_err(|e| HandlerError(e.to_string()))?;
     debug!("Handler actions: {:?}", actions);
 
     // exec the actions
@@ -56,43 +67,31 @@ pub async fn handler(
     Ok((
         StatusCode::OK,
         Json(json!({
-            "message": format!("Webhook processed: {webhook_name}"),
+            "message": format!("Webhook processed: {}", &webhook_config.metadata.name),
         })),
     )
         .into_response())
 }
 
-fn find_webhook(
-    webhooks: &HashMap<String, WebhookSpec>,
-    path: &str,
-) -> Result<(String, WebhookSpec), Error> {
-    // TODO - Implement a more efficient search for webhooks
-    for (name, config) in webhooks.iter() {
-        if config.path == path {
-            return Ok((name.to_owned(), config.to_owned()));
-        }
-    }
+fn create_bitbucket_handler(
+    payload: Value,
+    webhook_config: WebhookConfig,
+    webhook_rules: HashMap<String, &Rule>,
+) -> Result<Bitbucket, Error> {
+    let bitbucket_config = webhook_config.spec.bitbucket.as_ref().ok_or_else(|| {
+        Error::WebhookConfigError(format!(
+            "Bitbucket config is missing for webhook: {}",
+            webhook_config.metadata.name
+        ))
+    })?;
 
-    Err(WebhookNotFoundForPath(path.to_owned()).into())
-}
-
-fn find_rules_for_webhook<'a>(
-    webhook_name: &'a String,
-    rules: &'a HashMap<String, Rule>,
-) -> Result<HashMap<String, &'a Rule>, Error> {
-    let mut applicable_rules = HashMap::new();
-
-    for (rule_name, rule) in rules.iter() {
-        if rule.webhooks.contains(webhook_name) {
-            applicable_rules.insert(rule_name.to_owned(), rule);
-        }
-    }
-
-    if applicable_rules.is_empty() {
-        return Err(RulesNotFoundForWebhook(webhook_name.to_owned()).into());
-    }
-
-    Ok(applicable_rules)
+    // Instantiate the webhook handler
+    let handler = Bitbucket {
+        config: bitbucket_config.to_owned(),
+        rules: webhook_rules.to_owned(),
+        payload,
+    };
+    Ok(handler)
 }
 
 // TODO refactor to separate module?
@@ -118,7 +117,7 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
     let client = reqwest::Client::new();
 
     // set request method
-    let client = match action.method.to_uppercase().as_str() {
+    let mut client = match action.method.to_uppercase().as_str() {
         "GET" => client.get(&action.url),
         "POST" => client.post(&action.url),
         _ => {
@@ -129,31 +128,23 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
         }
     };
 
-    // set headers if present
-    let client = match &action.headers {
-        Some(headers) => {
-            let mut client = client;
-            for (key, value) in headers.iter() {
-                client = client.header(key, value);
-            }
-            client
+    // headers
+    if let Some(headers) = &action.headers {
+        for (key, value) in headers.iter() {
+            client = client.header(key, value);
         }
-        None => client,
-    };
+    }
 
-    // set body if present
-    let client = match &action.body {
-        Some(body) => client.body(body.to_owned()),
-        None => client,
-    };
+    // body
+    if let Some(body) = &action.body {
+        client = client.body(body.to_owned());
+    }
 
     // send the request
-    let response = client.send().await;
-
-    let response = match response {
-        Ok(resp) => resp,
-        Err(err) => return Err(Error::ActionError(format!("HTTP request failed: {}", err))),
-    };
+    let response = client
+        .send()
+        .await
+        .map_err(|e| Error::ActionError(e.to_string()))?;
 
     debug!("Action status: {}", response.status());
 

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::config::common::{ApiVersion, Metadata};
+use crate::app::config::types::ConfigKind;
+use super::{ApiVersion, Metadata};
+
 
 /// Webhook configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,12 +59,6 @@ pub struct BitbucketAuth {
     /// Environment variable containing the API token
     #[serde(rename = "tokenFromEnv")]
     pub token_from_env: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ConfigKind {
-    Webhook,
-    Rules,
 }
 
 impl WebhookConfig {

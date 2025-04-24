@@ -1,11 +1,7 @@
-mod config;
 mod app;
-mod error;
 
-pub use error::Error;
-
-use crate::config::ServerConfig;
 use anyhow::Result;
+use app::ServerConfig;
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -24,7 +20,6 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // Load configuration
-    // let config = Config::load(&args.config)?;
     let config = ServerConfig::from_file(&args.config)?;
 
     // run the server
