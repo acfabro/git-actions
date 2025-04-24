@@ -1,11 +1,12 @@
 use anyhow::{Context, Result};
 use std::sync::Arc;
 use tokio::net::TcpListener;
-
-use crate::app::{router, AppState};
-use crate::config::{Config, ServerConfig};
 use tokio::signal;
 use tracing::info;
+
+use super::AppState;
+use super::router;
+use super::config::{Config, ServerConfig};
 
 /// HTTP server for Git-Actions
 pub struct Server {

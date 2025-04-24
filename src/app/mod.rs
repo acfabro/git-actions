@@ -1,16 +1,14 @@
-pub mod server;
-
-pub use crate::Error;
-
+mod config;
+mod server;
 mod handlers;
 mod router;
 mod logging;
 mod webhooks;
+mod error;
 
-#[cfg(test)]
-mod tests;
+pub use config::{Config, ServerConfig};
+pub use error::Error;
 
-use crate::config::{Config, ServerConfig};
 use anyhow::{Context, Result};
 use server::Server;
 
@@ -26,7 +24,8 @@ pub async fn run(server_config: ServerConfig) -> Result<()> {
     logging::setup(&server_config.spec.logging).with_context(|| "Failed to setup logging")?;
 
     // Load application configuration
-    let app_config = Config::load(&server_config.spec.configs)?;
+    let mut app_config = Config::new();
+    app_config.load(&server_config.spec.configs)?;
 
     // Create HTTP server
     Server::new(server_config, app_config).start().await?;
