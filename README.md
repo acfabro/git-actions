@@ -35,14 +35,14 @@ With docker:
 
 ```bash
 # Build the image
-docker build -t git-actions:1.0.0 --build-arg version=-1.0.0 --build-arg release=1 .
+docker build -t git-actions:0.1.0 --build-arg version=-0.1.0 --build-arg release=1 .
 
 # Run the container
 docker run -p 8080:8080 \
   -v $(pwd)/server.yaml:/server.yaml \
   -v $(pwd)/rules.yaml:/rules.yaml \
   -v $(pwd)/webhooks.yaml:/webhooks.yaml \
-  git-actions:1.0.0
+  git-actions:0.1.0
 ```
 
 ## Command-line Options
