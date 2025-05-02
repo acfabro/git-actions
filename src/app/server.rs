@@ -15,11 +15,11 @@ pub struct Server {
 
 impl Server {
     /// Create a new HTTP server with the given configuration
-    pub fn new(
-        server_config: ServerConfig,
-        app_config: Config,
-    ) -> Self {
-        Self { server_config, app_config }
+    pub fn new(server_config: ServerConfig, app_config: Config) -> Self {
+        Self {
+            server_config,
+            app_config,
+        }
     }
 
     /// Start the HTTP server
@@ -35,7 +35,7 @@ impl Server {
         info!("Server listening on {}", addr);
 
         // create a router
-        let app = router::create_router();
+        let app = router::create_router(&self.server_config);
 
         // add app state
         let state = AppState {

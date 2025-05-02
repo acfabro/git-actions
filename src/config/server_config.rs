@@ -32,9 +32,15 @@ pub struct ServerSpec {
     pub port: u16,
     pub host: String,
     pub tls: Option<TlsSpec>,
+    #[serde(default = "default_context")]
+    pub context: ServerContext,
     pub logging: Option<LoggingSpec>,
     /// Configuration files to load (webhooks and rules)
     pub configs: Vec<String>,
+}
+
+fn default_context() -> String {
+    ServerSpec::default().context
 }
 
 impl Default for ServerSpec {
@@ -43,11 +49,14 @@ impl Default for ServerSpec {
             port: 8080,
             host: "0.0.0.0".to_string(),
             tls: None,
+            context: String::from("/webhooks"),
             logging: Some(LoggingSpec::default()),
             configs: Vec::new(),
         }
     }
 }
+
+pub type ServerContext = String;
 
 /// TLS configuration for secure HTTP connections
 #[derive(Debug, Clone, Serialize, Deserialize)]

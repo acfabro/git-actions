@@ -27,7 +27,7 @@ pub fn check(event: &Event, rule: &Rule) -> bool {
 
     // check paths / changed files
     let result = check_changed_files(&event.changed_files, &rule.paths);
-    if !result {
+    if result.is_none() {
         debug!("Changed files eval FAILED: {:?}", event.changed_files);
         return false;
     } else {
@@ -102,13 +102,23 @@ fn check_branch(event_branch: &Branch, rule_branches: &Option<Vec<BranchFilter>>
 }
 
 // TODO return matched paths instead of bool
-fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilter>>) -> bool {
+fn check_changed_files<'a>(
+    event_paths: &'a Vec<String>,
+    rule_paths: &Option<Vec<PathFilter>>,
+) -> Option<Vec<&'a Path>> {
     let rule_paths = match rule_paths {
         // if None or empty, then it matches any path
-        None => return true,
-        Some(rule_paths) if rule_paths.is_empty() => return true,
+        None => {
+            return Some(event_paths.iter().map(|path| path).collect())
+        },
+        Some(rule_paths) if rule_paths.is_empty() => {
+            return Some(event_paths.iter().map(|path| path).collect())
+        }
+        //
         Some(rule_paths) => rule_paths,
     };
+
+    let mut matched: Vec<&Path> = Vec::new();
 
     // check each event_paths
     for event_path in event_paths {
@@ -116,8 +126,8 @@ fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilt
             match path_filter {
                 PathFilter::Exact { exact } => {
                     if exact == event_path {
-                        debug!("Path matches exact: {}", exact);
-                        return true;
+                        debug!("Path matches exact: {}", event_path);
+                        matched.push(event_path);
                     }
                 }
                 PathFilter::Pattern { pattern } => {
@@ -130,8 +140,8 @@ fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilt
                     };
                     let result = pattern.matches(&event_path);
                     if result {
-                        debug!("Path matches wildcard: {}", pattern);
-                        return true;
+                        debug!("Path matches wildcard: {}", event_path);
+                        matched.push(event_path);
                     }
                 }
                 PathFilter::Regex { regex } => {
@@ -144,34 +154,37 @@ fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilt
                         }
                     };
                     if regex.is_match(&event_path) {
-                        debug!("Path matches regex: {}", regex);
-                        return true;
+                        debug!("Path matches regex: {}", event_path);
+                        matched.push(event_path);
                     }
                 }
             }
         }
     }
 
-    false
+    match matched {
+        matched if matched.len() > 0 => Some(matched),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::rules_config::{BranchFilter, PathFilter, Rule};
     use crate::app::webhooks::types::{Event, EventType};
+    use crate::config::rules_config::{BranchFilter, PathFilter, Rule};
 
     #[test]
     fn test_check_branch_exact_match() {
         // Setup
         let event_branch = "feature/new-feature".to_string();
-        let rule_branches = Some(vec![
-            BranchFilter::Exact { exact: "feature/new-feature".to_string() }
-        ]);
-        
+        let rule_branches = Some(vec![BranchFilter::Exact {
+            exact: "feature/new-feature".to_string(),
+        }]);
+
         // Execute
         let result = check_branch(&event_branch, &rule_branches);
-        
+
         // Verify
         assert!(result);
     }
@@ -180,13 +193,13 @@ mod tests {
     fn test_check_branch_no_match() {
         // Setup
         let event_branch = "feature/new-feature".to_string();
-        let rule_branches = Some(vec![
-            BranchFilter::Exact { exact: "main".to_string() }
-        ]);
-        
+        let rule_branches = Some(vec![BranchFilter::Exact {
+            exact: "main".to_string(),
+        }]);
+
         // Execute
         let result = check_branch(&event_branch, &rule_branches);
-        
+
         // Verify
         assert!(!result);
     }
@@ -195,13 +208,13 @@ mod tests {
     fn test_check_branch_pattern_match() {
         // Setup
         let event_branch = "feature/new-feature".to_string();
-        let rule_branches = Some(vec![
-            BranchFilter::Pattern { pattern: "feature/*".to_string() }
-        ]);
-        
+        let rule_branches = Some(vec![BranchFilter::Pattern {
+            pattern: "feature/*".to_string(),
+        }]);
+
         // Execute
         let result = check_branch(&event_branch, &rule_branches);
-        
+
         // Verify
         assert!(result);
     }
@@ -210,13 +223,13 @@ mod tests {
     fn test_check_branch_regex_match() {
         // Setup
         let event_branch = "feature/new-feature".to_string();
-        let rule_branches = Some(vec![
-            BranchFilter::Regex { regex: "feature/[\\w]+-[\\w]".to_string() }
-        ]);
-        
+        let rule_branches = Some(vec![BranchFilter::Regex {
+            regex: "feature/[\\w]+-[\\w]".to_string(),
+        }]);
+
         // Execute
         let result = check_branch(&event_branch, &rule_branches);
-        
+
         // Verify
         assert!(result);
     }
@@ -226,10 +239,10 @@ mod tests {
         // Setup
         let event_branch = "feature/new-feature".to_string();
         let rule_branches = Some(vec![]);
-        
+
         // Execute
         let result = check_branch(&event_branch, &rule_branches);
-        
+
         // Verify
         assert!(result);
     }
@@ -239,10 +252,10 @@ mod tests {
         // Setup
         let event_branch = "feature/new-feature".to_string();
         let rule_branches = None;
-        
+
         // Execute
         let result = check_branch(&event_branch, &rule_branches);
-        
+
         // Verify
         assert!(result);
     }
@@ -252,10 +265,10 @@ mod tests {
         // Setup
         let event_type = EventType::PRCreated;
         let rule_event_types = Some(vec!["pr_created".to_string()]);
-        
+
         // Execute
         let result = check_event_type(&event_type, &rule_event_types);
-        
+
         // Verify
         assert!(result);
     }
@@ -265,10 +278,10 @@ mod tests {
         // Setup
         let event_type = EventType::PRCreated;
         let rule_event_types = Some(vec!["pr_modified".to_string()]);
-        
+
         // Execute
         let result = check_event_type(&event_type, &rule_event_types);
-        
+
         // Verify
         assert!(!result);
     }
@@ -278,10 +291,10 @@ mod tests {
         // Setup
         let event_type = EventType::PRCreated;
         let rule_event_types = Some(vec![]);
-        
+
         // Execute
         let result = check_event_type(&event_type, &rule_event_types);
-        
+
         // Verify
         assert!(result);
     }
@@ -291,10 +304,10 @@ mod tests {
         // Setup
         let event_type = EventType::PRCreated;
         let rule_event_types = None;
-        
+
         // Execute
         let result = check_event_type(&event_type, &rule_event_types);
-        
+
         // Verify
         assert!(result);
     }
@@ -303,60 +316,60 @@ mod tests {
     fn test_check_changed_files_exact_match() {
         // Setup
         let event_paths = vec!["src/main.rs".to_string()];
-        let rule_paths = Some(vec![
-            PathFilter::Exact { exact: "src/main.rs".to_string() }
-        ]);
-        
+        let rule_paths = Some(vec![PathFilter::Exact {
+            exact: "src/main.rs".to_string(),
+        }]);
+
         // Execute
         let result = check_changed_files(&event_paths, &rule_paths);
-        
+
         // Verify
-        assert!(result);
+        assert!(result.unwrap().len() > 0);
     }
 
     #[test]
     fn test_check_changed_files_no_match() {
         // Setup
         let event_paths = vec!["src/main.rs".to_string()];
-        let rule_paths = Some(vec![
-            PathFilter::Exact { exact: "src/lib.rs".to_string() }
-        ]);
-        
+        let rule_paths = Some(vec![PathFilter::Exact {
+            exact: "src/lib.rs".to_string(),
+        }]);
+
         // Execute
         let result = check_changed_files(&event_paths, &rule_paths);
-        
+
         // Verify
-        assert!(!result);
+        assert!(result.is_none());
     }
 
     #[test]
     fn test_check_changed_files_pattern_match() {
         // Setup
         let event_paths = vec!["src/main.rs".to_string()];
-        let rule_paths = Some(vec![
-            PathFilter::Pattern { pattern: "src/*.rs".to_string() }
-        ]);
-        
+        let rule_paths = Some(vec![PathFilter::Pattern {
+            pattern: "src/*.rs".to_string(),
+        }]);
+
         // Execute
         let result = check_changed_files(&event_paths, &rule_paths);
-        
+
         // Verify
-        assert!(result);
+        assert!(result.unwrap().len() > 0);
     }
 
     #[test]
     fn test_check_changed_files_regex_match() {
         // Setup
         let event_paths = vec!["src/main.rs".to_string()];
-        let rule_paths = Some(vec![
-            PathFilter::Regex { regex: "src/.*\\.rs".to_string() }
-        ]);
-        
+        let rule_paths = Some(vec![PathFilter::Regex {
+            regex: "src/.*\\.rs".to_string(),
+        }]);
+
         // Execute
         let result = check_changed_files(&event_paths, &rule_paths);
-        
+
         // Verify
-        assert!(result);
+        assert!(result.unwrap().len() > 0);
     }
 
     #[test]
@@ -365,21 +378,25 @@ mod tests {
         let event = Event {
             event_type: EventType::PRCreated,
             branch: "feature/new-feature".to_string(),
-            changed_files: vec!["src/main.rs".to_string()]
+            changed_files: vec!["src/main.rs".to_string()],
         };
-        
+
         let rule = Rule {
             description: Some("Test rule".to_string()),
             webhooks: vec!["test-webhook".to_string()],
             event_types: Some(vec!["pr_created".to_string()]),
-            branches: Some(vec![BranchFilter::Pattern { pattern: "feature/*".to_string() }]),
-            paths: Some(vec![PathFilter::Pattern { pattern: "src/*.rs".to_string() }]),
-            actions: vec![] // Empty for this test
+            branches: Some(vec![BranchFilter::Pattern {
+                pattern: "feature/*".to_string(),
+            }]),
+            paths: Some(vec![PathFilter::Pattern {
+                pattern: "src/*.rs".to_string(),
+            }]),
+            actions: vec![], // Empty for this test
         };
-        
+
         // Execute
         let result = check(&event, &rule);
-        
+
         // Verify
         assert!(result);
     }
@@ -390,21 +407,25 @@ mod tests {
         let event = Event {
             event_type: EventType::PRModified,
             branch: "feature/new-feature".to_string(),
-            changed_files: vec!["src/main.rs".to_string()]
+            changed_files: vec!["src/main.rs".to_string()],
         };
-        
+
         let rule = Rule {
             description: Some("Test rule".to_string()),
             webhooks: vec!["test-webhook".to_string()],
             event_types: Some(vec!["pr_created".to_string()]),
-            branches: Some(vec![BranchFilter::Pattern { pattern: "feature/*".to_string() }]),
-            paths: Some(vec![PathFilter::Pattern { pattern: "src/*.rs".to_string() }]),
-            actions: vec![] // Empty for this test
+            branches: Some(vec![BranchFilter::Pattern {
+                pattern: "feature/*".to_string(),
+            }]),
+            paths: Some(vec![PathFilter::Pattern {
+                pattern: "src/*.rs".to_string(),
+            }]),
+            actions: vec![], // Empty for this test
         };
-        
+
         // Execute
         let result = check(&event, &rule);
-        
+
         // Verify
         assert!(!result);
     }
@@ -415,21 +436,25 @@ mod tests {
         let event = Event {
             event_type: EventType::PRCreated,
             branch: "main".to_string(),
-            changed_files: vec!["src/main.rs".to_string()]
+            changed_files: vec!["src/main.rs".to_string()],
         };
-        
+
         let rule = Rule {
             description: Some("Test rule".to_string()),
             webhooks: vec!["test-webhook".to_string()],
             event_types: Some(vec!["pr_created".to_string()]),
-            branches: Some(vec![BranchFilter::Pattern { pattern: "feature/*".to_string() }]),
-            paths: Some(vec![PathFilter::Pattern { pattern: "src/*.rs".to_string() }]),
-            actions: vec![] // Empty for this test
+            branches: Some(vec![BranchFilter::Pattern {
+                pattern: "feature/*".to_string(),
+            }]),
+            paths: Some(vec![PathFilter::Pattern {
+                pattern: "src/*.rs".to_string(),
+            }]),
+            actions: vec![], // Empty for this test
         };
-        
+
         // Execute
         let result = check(&event, &rule);
-        
+
         // Verify
         assert!(!result);
     }
@@ -440,21 +465,25 @@ mod tests {
         let event = Event {
             event_type: EventType::PRCreated,
             branch: "feature/new-feature".to_string(),
-            changed_files: vec!["docs/README.md".to_string()]
+            changed_files: vec!["docs/README.md".to_string()],
         };
-        
+
         let rule = Rule {
             description: Some("Test rule".to_string()),
             webhooks: vec!["test-webhook".to_string()],
             event_types: Some(vec!["pr_created".to_string()]),
-            branches: Some(vec![BranchFilter::Pattern { pattern: "feature/*".to_string() }]),
-            paths: Some(vec![PathFilter::Pattern { pattern: "src/*.rs".to_string() }]),
-            actions: vec![] // Empty for this test
+            branches: Some(vec![BranchFilter::Pattern {
+                pattern: "feature/*".to_string(),
+            }]),
+            paths: Some(vec![PathFilter::Pattern {
+                pattern: "src/*.rs".to_string(),
+            }]),
+            actions: vec![], // Empty for this test
         };
-        
+
         // Execute
         let result = check(&event, &rule);
-        
+
         // Verify
         assert!(!result);
     }

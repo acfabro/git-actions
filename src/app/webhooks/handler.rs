@@ -1,5 +1,5 @@
 use crate::app::webhooks::bitbucket::Bitbucket;
-use crate::app::webhooks::types::WebhookTypeHandler;
+use crate::app::webhooks::types::{WebhookTypeHandler, Event};
 use crate::app::{AppState, Error};
 use crate::config::rules_config::{Action, HttpAction};
 use crate::config::{Rule, WebhookSpec};
@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, error};
 use Error::{RulesNotFoundForWebhook, WebhookNotFoundForPath};
+use crate::app::webhooks::template_engine::render_template;
+use tera::Context;
 
 #[axum::debug_handler]
 pub async fn handler(
@@ -21,7 +23,12 @@ pub async fn handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, Error> {
-    debug!("Handler: path={}, payload={:?}", path, payload);
+    debug!("Handler path: {}", path);
+    debug!(
+        "Handler payload: {}",
+        serde_json::to_string(&payload)
+            .map_err(|_| Error::WebhookPayloadError("JSON Payload error".to_string()))?
+    );
 
     // Get the webhook config based on the path
     let (webhook_name, webhook_config) = find_webhook(&state.config.webhooks, &path)?;
@@ -49,8 +56,12 @@ pub async fn handler(
     let actions = handler.run().await?;
     debug!("Handler actions: {:?}", actions);
 
+    // Build the event struct for template context
+    // (Assume Bitbucket handler exposes a method to extract Event)
+    let event = handler.extract_event().await?;
+
     // exec the actions
-    exec_actions(actions).await?;
+    exec_actions(actions, &event).await?;
 
     // Return a success response
     Ok((
@@ -96,11 +107,11 @@ fn find_rules_for_webhook<'a>(
 }
 
 // TODO refactor to separate module?
-async fn exec_actions(actions: Vec<&Action>) -> Result<(), Error> {
+async fn exec_actions(actions: Vec<&Action>, event: &Event) -> Result<(), Error> {
     for action in actions {
         if let Some(http) = &action.http {
             // TODO tracing
-            exec_http_action(http).await?;
+            exec_http_action(http, event).await?;
         }
         if let Some(_shell) = &action.shell {
             // TODO implement shell action
@@ -113,7 +124,7 @@ async fn exec_actions(actions: Vec<&Action>) -> Result<(), Error> {
 }
 
 // TODO refactor to separate module?
-async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
+async fn exec_http_action(action: &HttpAction, event: &Event) -> Result<(), Error> {
     // create a new HTTP client
     let client = reqwest::Client::new();
 
@@ -121,6 +132,9 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
     let mut client = match action.method.to_uppercase().as_str() {
         "GET" => client.get(&action.url),
         "POST" => client.post(&action.url),
+        "PUT" => client.put(&action.url),
+        "PATCH" => client.patch(&action.url),
+        "DELETE" => client.delete(&action.url),
         _ => {
             return Err(Error::ActionError(format!(
                 "Unsupported HTTP method: {}",
@@ -136,9 +150,26 @@ async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
         }
     }
 
-    // body
+    // body (with template rendering)
     if let Some(body) = &action.body {
-        client = client.body(body.to_owned());
+        let mut context = Context::new();
+        context.insert("event", event);
+        let rendered_body = match render_template(body, &context) {
+            Ok(rendered) => rendered,
+            Err(e) => {
+                // Provide a clear error message with template and context info
+                let context_keys = context
+                    .as_json()
+                    .as_object()
+                    .map(|obj| obj.keys().cloned().collect::<Vec<_>>())
+                    .unwrap_or_default();
+                return Err(Error::ActionError(format!(
+                    "Template rendering error: {}\nTemplate: {}\nContext keys: {:?}",
+                    e, body, context_keys
+                )));
+            }
+        };
+        client = client.body(rendered_body);
     }
 
     // send the request

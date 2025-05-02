@@ -1,5 +1,6 @@
 use crate::Error;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, Display};
 use crate::config::rules_config::Action;
 
@@ -18,7 +19,7 @@ pub trait WebhookTypeHandler: Send + Sync {
     async fn run(&self) -> Result<Vec<&Action>, Error>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Event {
     pub event_type: EventType,
     pub branch: Branch,
@@ -28,7 +29,7 @@ pub struct Event {
 pub type Branch = String;
 pub type Path = String;
 
-#[derive(Clone, Debug, PartialEq, AsRefStr, Display)]
+#[derive(Clone, Debug, PartialEq, AsRefStr, Display, Serialize, Deserialize)]
 pub enum EventType {
     #[strum(serialize = "pr_created")]
     PRCreated,
