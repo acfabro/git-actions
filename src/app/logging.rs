@@ -1,4 +1,4 @@
-use crate::config::server_config::LoggingSpec;
+use super::config::server::LoggingSpec;
 use anyhow::Result;
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};

@@ -1,6 +1,8 @@
+use crate::app::config::{
+    rules::{BranchFilter, PathFilter},
+    Rule,
+};
 use crate::app::webhooks::types::{Branch, Event, EventType, Path};
-use crate::config::rules_config::{BranchFilter, PathFilter};
-use crate::config::Rule;
 use glob::Pattern;
 use regex::Regex;
 use tracing::{debug, error};
@@ -158,8 +160,8 @@ fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilt
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::rules_config::{BranchFilter, PathFilter, Rule};
     use crate::app::webhooks::types::{Event, EventType};
+    use crate::app::config::rules::{BranchFilter, PathFilter, Rule};
 
     #[test]
     fn test_check_branch_exact_match() {

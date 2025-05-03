@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::config::common::{ApiVersion, Metadata};
-use crate::config::webhook_config::ConfigKind;
+use crate::app::config::types::{ApiVersion, ConfigKind, Metadata};
 
 /// Rules configuration for Git-Actions
 #[derive(Debug, Clone, Serialize, Deserialize)]

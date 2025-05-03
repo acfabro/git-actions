@@ -1,8 +1,8 @@
-use crate::config::common::{ApiVersion, Metadata};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use crate::app::config::types::{ApiVersion, Metadata};
 
 /// Server configuration for Git-Actions
 #[derive(Debug, Clone, Serialize, Deserialize)]
