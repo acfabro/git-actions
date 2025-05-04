@@ -263,5 +263,4 @@ mod tests {
         let branch_result = bitbucket.extract_branch().await;
         assert!(branch_result.is_err());
     }
-
 }
