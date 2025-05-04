@@ -8,7 +8,7 @@ and executes configurable actions based on customizable rules.
 - Listens for webhook events from Git platforms (Bitbucket, GitHub, etc.)
 - Executes configurable actions (shell commands, HTTP requests) based on event data
 - Supports powerful rule matching with branch patterns, path patterns, and event types
-- Uses templating for dynamic values in commands and HTTP requests
+- Uses Tera templating for dynamic values in HTTP actions (e.g., `{{ event.branch }}`, `{{ env.API_KEY }}`)
 - Kubernetes-inspired configuration structure
 
 ## Configuration
@@ -53,7 +53,7 @@ docker run -p 8080:8080 \
 
 ## Planned TODOs
 
-1. Templating for dynamic values
+1. ✅ Templating for dynamic values in HTTP actions
 2. Improved error handling
 3. Implement more action types (shell, kubernetes, etc)
 4. Action queueing and retry logic

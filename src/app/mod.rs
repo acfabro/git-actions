@@ -3,8 +3,9 @@ mod server;
 mod handlers;
 mod router;
 mod logging;
-pub mod webhooks;
 mod error;
+pub mod webhooks;
+pub mod template;
 
 pub use config::{Config, ServerConfig};
 pub use error::Error;

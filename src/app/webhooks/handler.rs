@@ -3,10 +3,10 @@ use crate::app::{
         rules::{Action, HttpAction, Rule},
         WebhookConfig,
     },
+    template,
     webhooks::bitbucket::Bitbucket,
-    webhooks::types::WebhookTypeHandler,
-    AppState,
-    Error,
+    webhooks::types::{Event, WebhookTypeHandler},
+    AppState, Error,
     Error::HandlerError,
 };
 use axum::{
@@ -18,6 +18,7 @@ use axum::{
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tera::Context;
 use tracing::{debug, error};
 use Error::{RulesNotFoundForWebhook, WebhookNotFoundForPath};
 
@@ -60,8 +61,14 @@ pub async fn handler(
         .map_err(|e| HandlerError(e.to_string()))?;
     debug!("Handler actions: {:?}", actions);
 
-    // exec the actions
-    exec_actions(actions).await?;
+    // Extract the event for template rendering
+    let event = handler
+        .extract_event()
+        .await
+        .map_err(|e| HandlerError(e.to_string()))?;
+
+    // exec the actions with the event for template context
+    exec_actions(actions, &event).await?;
 
     // Return a success response
     Ok((
@@ -95,11 +102,16 @@ fn create_bitbucket_handler(
 }
 
 // TODO refactor to separate module?
-async fn exec_actions(actions: Vec<&Action>) -> Result<(), Error> {
+async fn exec_actions(actions: Vec<&Action>, event: &Event) -> Result<(), Error> {
+    // Build the template context once with all environment variables
+    let context = template::build_template_context(event);
+
+    println!("{:?}", context);
+
     for action in actions {
         if let Some(http) = &action.http {
             // TODO tracing
-            exec_http_action(http).await?;
+            exec_http_action(http, &context).await?;
         }
         if let Some(_shell) = &action.shell {
             // TODO implement shell action
@@ -112,32 +124,43 @@ async fn exec_actions(actions: Vec<&Action>) -> Result<(), Error> {
 }
 
 // TODO refactor to separate module?
-async fn exec_http_action(action: &HttpAction) -> Result<(), Error> {
+async fn exec_http_action(action: &HttpAction, context: &Context) -> Result<(), Error> {
     // create a new HTTP client
     let client = reqwest::Client::new();
 
+    // Render templates in method and url
+    let method = template::render_template(&action.method, context)
+        .map_err(|e| Error::ActionError(format!("Failed to render method template: {}", e)))?;
+
+    let url = template::render_template(&action.url, context)
+        .map_err(|e| Error::ActionError(format!("Failed to render URL template: {}", e)))?;
+
     // set request method
-    let mut client = match action.method.to_uppercase().as_str() {
-        "GET" => client.get(&action.url),
-        "POST" => client.post(&action.url),
+    let mut client = match method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
         _ => {
             return Err(Error::ActionError(format!(
                 "Unsupported HTTP method: {}",
-                action.method
+                method
             )))
         }
     };
 
-    // headers
+    // headers with template rendering
     if let Some(headers) = &action.headers {
-        for (key, value) in headers.iter() {
+        let rendered_headers = template::render_template_map(headers, context);
+        for (key, value) in rendered_headers.iter() {
             client = client.header(key, value);
         }
     }
 
-    // body
+    // body with template rendering
     if let Some(body) = &action.body {
-        client = client.body(body.to_owned());
+        let rendered_body = template::render_template(body, context)
+            .map_err(|e| Error::ActionError(format!("Failed to render body template: {}", e)));
+
+        client = client.body(rendered_body?);
     }
 
     // send the request
