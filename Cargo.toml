@@ -1,6 +1,6 @@
 [package]
 name = "git-actions"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "A Rust-based automation tool for Git events"
 
@@ -48,3 +48,5 @@ log = "0.4.25"
 
 [dev-dependencies]
 tempfile = "3.19.1"
+mockito = "1.7.0"
+wiremock = "0.6"

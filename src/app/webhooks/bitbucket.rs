@@ -43,7 +43,7 @@ impl Bitbucket<'_> {
             .with_context(|| format!("jsonpath compile error: {}", jsonpath))?;
 
         match branch.get(0) {
-            None => Err(anyhow!("Missing branch from payload".to_string())),
+            None => Err(anyhow!("Missing branch from payload")),
             Some(b) => {
                 // getting an issue where a string is returned with quotes
                 if let Some(s) = b.as_str() {
@@ -63,16 +63,14 @@ impl Bitbucket<'_> {
             .query(jsonpath)
             .with_context(|| format!("jsonpath error: {}", jsonpath))?;
 
-        // as u32
-        let pr_id: u32 = match pr_id.get(0) {
+        //
+        let pr_id: &str = &match pr_id.get(0) {
             None => bail!("Missing pull request id from payload"),
-            Some(id) => {
-                if let Some(s) = id.as_u64() {
-                    s as u32
-                } else {
-                    bail!("Invalid pull request id from payload".to_string());
-                }
-            }
+            Some(id) => match id {
+                Value::Number(n) => n.to_string(),
+                Value::String(s) => s.to_owned(),
+                _ => bail!("Invalid pull request id from payload"),
+            },
         };
 
         // bitbucket api config vars
@@ -86,11 +84,7 @@ impl Bitbucket<'_> {
         // call the api
         let response = client
             .api()
-            .pull_request_changes_get(
-                &self.config.api.project,
-                &self.config.api.repo,
-                &pr_id.to_string(),
-            )
+            .pull_request_changes_get(&self.config.api.project, &self.config.api.repo, pr_id)
             .build()
             .with_context(|| "Error building bitbucket api request".to_string())?
             .send()
@@ -145,7 +139,7 @@ impl WebhookTypeHandler for Bitbucket<'_> {
 /// Convert bitbucket event type string to EventType enum
 fn event_type_from_str(str: &str) -> Result<EventType> {
     match str {
-        "pr:created" => Ok(EventType::PRCreated),
+        "pr:opened" => Ok(EventType::PROpened),
         "pr:modified" => Ok(EventType::PRModified),
         "pr:merged" => Ok(EventType::PRMerged),
         // TODO other event types
@@ -193,13 +187,13 @@ mod tests {
     #[tokio::test]
     async fn test_extract_event_type_created() {
         let payload = json!({
-            "eventKey": "pr:created"
+            "eventKey": "pr:opened"
         });
 
         let bitbucket = create_test_bitbucket(payload);
 
         let event_type = bitbucket.extract_event_type().await;
-        assert_eq!(event_type.unwrap(), EventType::PRCreated);
+        assert_eq!(event_type.unwrap(), EventType::PROpened);
     }
 
     #[tokio::test]
@@ -266,5 +260,237 @@ mod tests {
 
         let branch = bitbucket.extract_branch().await;
         assert!(branch.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_branch_nested_structure() {
+        // Test with the deep nested structure from the real payload
+        let payload = json!({
+            "pullRequest": {
+                "fromRef": {
+                    "displayId": "feature/test-push-branch-no-pr",
+                    "id": "refs/heads/feature/test-push-branch-no-pr",
+                    "repository": {
+                        "slug": "sre-infra",
+                        "project": {
+                            "key": "GOLF"
+                        }
+                    }
+                }
+            }
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        let branch = bitbucket.extract_branch().await;
+        assert_eq!(branch.unwrap(), "feature/test-push-branch-no-pr");
+    }
+
+    #[tokio::test]
+    async fn test_invalid_payload() {
+        // A completely invalid payload that doesn't match Bitbucket structure
+        let payload = json!({
+            "type": "not-bitbucket",
+            "data": {
+                "random": "values"
+            }
+        });
+
+        let bitbucket = create_test_bitbucket(payload);
+
+        // The event extraction should fail
+        let event_result = bitbucket.extract_event().await;
+        assert!(event_result.is_err());
+
+        // Each individual extraction method should also fail
+        let event_type_result = bitbucket.extract_event_type().await;
+        assert!(event_type_result.is_err());
+
+        let branch_result = bitbucket.extract_branch().await;
+        assert!(branch_result.is_err());
+    }
+
+    // Integration tests using the custom HTTP client approach
+    #[tokio::test]
+    async fn integration_extract_changed_files_success() {
+        use serde_json::json;
+        use std::collections::HashMap;
+        use wiremock::matchers::{method, path_regex};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        // Import config types
+        use crate::app::config::webhook::{
+            Bitbucket as BitbucketConfig, BitbucketApi, BitbucketAuth,
+        };
+
+        // Start a mock server
+        let mock_server = MockServer::start().await;
+
+        // Prepare mock Bitbucket API response
+        let api_response = json!({
+            "fromHash": "deadbeef",
+            "toHash": "beefdead",
+            "values": [
+                {
+                    "contentId": "abc123",
+                    "type": "MODIFY",
+                    "path": { "toString": "src/main.rs", "fromHash": "deadbeef" },
+                    "fromHash": "deadbeef",
+                    "toHash": "beefdead"
+                },
+                {
+                    "contentId": "def456",
+                    "type": "ADD",
+                    "path": { "toString": "README.md", "fromHash": "cafebabe" },
+                    "fromHash": "cafebabe",
+                    "toHash": "babecafe"
+                }
+            ]
+        });
+
+        // Mock the Bitbucket API endpoint for PR changes
+        Mock::given(method("GET"))
+            .and(path_regex(".*/pull-requests/123/changes$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(api_response))
+            .mount(&mock_server)
+            .await;
+
+        // Prepare payload with pull request ID
+        let payload = json!({
+            "pullRequest": {
+                "id": 123
+            }
+        });
+
+        // Build config to use the mock server
+        let config = BitbucketConfig {
+            token_from_env: Some("".to_string()),
+            api: BitbucketApi {
+                base_url: mock_server.uri(),
+                project: "PROJ".to_string(),
+                repo: "REPO".to_string(),
+                auth: BitbucketAuth {
+                    auth_type: "token".to_string(),
+                    token_from_env: "".to_string(),
+                },
+            },
+        };
+
+        // Create Bitbucket instance with config and payload
+        let bitbucket = Bitbucket {
+            config,
+            rules: HashMap::new(),
+            payload,
+        };
+
+        // Call extract_changed_files and assert result
+        let files = bitbucket.extract_changed_files().await.unwrap();
+        assert_eq!(
+            files,
+            vec!["src/main.rs".to_string(), "README.md".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn integration_rule_evaluation_with_changed_files() {
+        use crate::app::config::webhook::{Bitbucket as BitbucketConfig, BitbucketApi, BitbucketAuth};
+        use crate::app::config::Rule;
+        use serde_json::json;
+        use std::collections::HashMap;
+        use wiremock::matchers::{method, path_regex};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        // Start a mock server
+        let mock_server = MockServer::start().await;
+
+        // Prepare mock Bitbucket API response
+        let api_response = json!({
+        "fromHash": "deadbeef",
+        "toHash": "beefdead",
+        "values": [
+            {
+                "contentId": "abc123",
+                "type": "MODIFY",
+                "path": { "toString": "src/main.rs", "fromHash": "deadbeef" },
+                "fromHash": "deadbeef",
+                "toHash": "beefdead"
+            },
+            {
+                "contentId": "def456",
+                "type": "ADD",
+                "path": { "toString": "README.md", "fromHash": "cafebabe" },
+                "fromHash": "cafebabe",
+                "toHash": "babecafe"
+            }
+        ]
+    });
+
+        // Mock the Bitbucket API endpoint for PR changes
+        Mock::given(method("GET"))
+            .and(path_regex(".*/pull-requests/123/changes$"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(api_response))
+            .mount(&mock_server)
+            .await;
+
+        // Prepare payload with pull request ID
+        let payload = json!({
+        "pullRequest": {
+            "id": 123
+        }
+    });
+
+        // Build config to use the mock server
+        let config = BitbucketConfig {
+            token_from_env: Some("".to_string()),
+            api: BitbucketApi {
+                base_url: mock_server.uri(),
+                project: "PROJ".to_string(),
+                repo: "REPO".to_string(),
+                auth: BitbucketAuth {
+                    auth_type: "token".to_string(),
+                    token_from_env: "".to_string(),
+                },
+            },
+        };
+
+        // Define a rule that matches on changed file "src/main.rs"
+        let mut rules = HashMap::new();
+        use crate::app::config::rules::PathFilter;
+
+        let rule = Rule {
+            description: Some("main_rs_change".to_string()),
+            webhooks: vec![],
+            event_types: None,
+            branches: None,
+            paths: Some(vec![PathFilter::Exact {
+                exact: "src/main.rs".to_string(),
+            }]),
+            actions: vec![],
+        };
+        rules.insert("main_rs_change".to_string(), &rule);
+
+        // Create Bitbucket instance with config, rules, and payload
+        let bitbucket = Bitbucket {
+            config,
+            rules: rules.clone(),
+            payload,
+        };
+
+        // Extract changed files
+        let changed_files = bitbucket.extract_changed_files().await.unwrap();
+
+        // Evaluate rules: check if any rule's paths match any changed file
+        let matched = rules.values().any(|rule| {
+            if let Some(ref paths) = rule.paths {
+                paths.iter().any(|filter| match filter {
+                    PathFilter::Exact { exact } => changed_files.contains(exact),
+                    _ => false,
+                })
+            } else {
+                false
+            }
+        });
+
+        assert!(matched, "Rule should match changed file src/main.rs");
     }
 }
