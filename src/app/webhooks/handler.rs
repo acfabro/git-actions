@@ -1,4 +1,3 @@
-use crate::app::Error::HandlerError;
 use crate::app::{
     config::{
         rules::{Action, HttpAction, Rule},
@@ -6,7 +5,9 @@ use crate::app::{
     },
     webhooks::bitbucket::Bitbucket,
     webhooks::types::WebhookTypeHandler,
-    AppState, Error,
+    AppState,
+    Error,
+    Error::HandlerError,
 };
 use axum::{
     extract::{Path, State},
@@ -26,7 +27,8 @@ pub async fn handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<Value>,
 ) -> Result<impl IntoResponse, Error> {
-    debug!("Handler: path={}, payload={:?}", path, payload);
+    debug!("Handler path={}", path);
+    debug!("Handler payload={}", payload.to_string());
 
     // Get the webhook config based on the path
     let webhook_config = state

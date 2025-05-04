@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn test_check_event_type_match() {
         // Setup
-        let event_type = EventType::PRCreated;
+        let event_type = EventType::PROpened;
         let rule_event_types = Some(vec!["pr_created".to_string()]);
         
         // Execute
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn test_check_event_type_no_match() {
         // Setup
-        let event_type = EventType::PRCreated;
+        let event_type = EventType::PROpened;
         let rule_event_types = Some(vec!["pr_modified".to_string()]);
         
         // Execute
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_check_event_type_empty_rules_should_pass() {
         // Setup
-        let event_type = EventType::PRCreated;
+        let event_type = EventType::PROpened;
         let rule_event_types = Some(vec![]);
         
         // Execute
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_check_event_type_none_rules_should_pass() {
         // Setup
-        let event_type = EventType::PRCreated;
+        let event_type = EventType::PROpened;
         let rule_event_types = None;
         
         // Execute
@@ -365,7 +365,7 @@ mod tests {
     fn test_check_complete_rule_match() {
         // Setup
         let event = Event {
-            event_type: EventType::PRCreated,
+            event_type: EventType::PROpened,
             branch: "feature/new-feature".to_string(),
             changed_files: vec!["src/main.rs".to_string()]
         };
@@ -415,7 +415,7 @@ mod tests {
     fn test_check_complete_rule_no_match_branch() {
         // Setup
         let event = Event {
-            event_type: EventType::PRCreated,
+            event_type: EventType::PROpened,
             branch: "main".to_string(),
             changed_files: vec!["src/main.rs".to_string()]
         };
@@ -440,7 +440,7 @@ mod tests {
     fn test_check_complete_rule_no_match_path() {
         // Setup
         let event = Event {
-            event_type: EventType::PRCreated,
+            event_type: EventType::PROpened,
             branch: "feature/new-feature".to_string(),
             changed_files: vec!["docs/README.md".to_string()]
         };

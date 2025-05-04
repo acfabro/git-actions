@@ -49,7 +49,7 @@ pub type Path = String;
 #[derive(Clone, Debug, PartialEq, AsRefStr, Display)]
 pub enum EventType {
     #[strum(serialize = "pr_created")]
-    PRCreated,
+    PROpened,
     #[strum(serialize = "pr_modified")]
     PRModified,
     #[strum(serialize = "pr_merged")]
