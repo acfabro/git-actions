@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
 use tera::{Context, Tera};
-use tracing::{debug, error};
+use tracing::error;
 
 pub fn build_template_context(event: &Event) -> Context {
     let mut context = Context::new();
@@ -63,7 +63,7 @@ mod tests {
     use super::*;
     use crate::app::webhooks::types::{Event, EventType};
     use std::env;
-    
+
     #[test]
     fn test_build_template_context() {
         let event = Event {
