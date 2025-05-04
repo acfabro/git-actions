@@ -3,6 +3,7 @@ use crate::app::config::Rule;
 use crate::app::webhooks::rule_evaluator;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use serde::Serialize;
 use std::collections::HashMap;
 use strum_macros::{AsRefStr, Display};
 use tracing::debug;
@@ -36,8 +37,9 @@ pub trait WebhookTypeHandler: Send + Sync {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Event {
+    #[serde(rename = "type")]
     pub event_type: EventType,
     pub branch: Branch,
     pub changed_files: Vec<Path>,
@@ -46,13 +48,16 @@ pub struct Event {
 pub type Branch = String;
 pub type Path = String;
 
-#[derive(Clone, Debug, PartialEq, AsRefStr, Display)]
+#[derive(Clone, Debug, PartialEq, AsRefStr, Display, Serialize)]
 pub enum EventType {
     #[strum(serialize = "pr_created")]
+    #[serde(rename = "pr_created")]
     PROpened,
     #[strum(serialize = "pr_modified")]
+    #[serde(rename = "pr_modified")]
     PRModified,
     #[strum(serialize = "pr_merged")]
+    #[serde(rename = "pr_merged")]
     PRMerged,
     // TODO add more event types as needed
 }
