@@ -1,7 +1,7 @@
 use crate::app::config::rules::Action;
 use crate::app::config::Rule;
 use crate::app::webhooks::rule_evaluator;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use strum_macros::{AsRefStr, Display};
@@ -55,4 +55,17 @@ pub enum EventType {
     #[strum(serialize = "pr_merged")]
     PRMerged,
     // TODO add more event types as needed
+}
+
+impl TryFrom<&str> for EventType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "pr:opened" => Ok(EventType::PROpened),
+            "pr:modified" => Ok(EventType::PRModified),
+            "pr:merged" => Ok(EventType::PRMerged),
+            _ => Err(anyhow!("Invalid event type: {}", value)),
+        }
+    }
 }

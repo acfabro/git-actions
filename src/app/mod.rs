@@ -1,9 +1,9 @@
-mod config;
+pub mod config;
 mod server;
 mod handlers;
 mod router;
 mod logging;
-mod webhooks;
+pub mod webhooks;
 mod error;
 
 pub use config::{Config, ServerConfig};
