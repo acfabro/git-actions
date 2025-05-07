@@ -5,11 +5,15 @@ use serde_json::json;
 // TODO classify errors?
 #[derive(Debug)]
 pub enum Error {
+    /// Invalid webhook configuration
     WebhookConfigError(String),
+    /// Webhook config not found given a path
     WebhookNotFoundForPath(String),
-    WebhookPayloadError(String),
+    /// No rule found attached to the webhook
     RulesNotFoundForWebhook(String),
-    ToImplementError(String),
+    /// Error in the webhook handler
+    HandlerError(String),
+    /// Error performing the action
     ActionError(String),
 }
 
@@ -24,18 +28,18 @@ impl IntoResponse for Error {
                 axum::http::StatusCode::NOT_FOUND,
                 format!("rules not found for webhook: {webhook_name}"),
             ),
-            Error::WebhookPayloadError(message) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                format!("webhook payload error: {message}"),
-            ),
             Error::ActionError(message) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("action error: {message}"),
             ),
-            _ => (
+            Error::WebhookConfigError(message) => (
+                axum::http::StatusCode::BAD_REQUEST,
+                format!("webhook configuration error: {message}"),
+            ),
+            Error::HandlerError(message) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "internal server error".to_string(),
-            )
+                format!("handler error: {message}"),
+            ),
         };
 
         let body = axum::Json(json!({"error": error_message}));

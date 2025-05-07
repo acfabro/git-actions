@@ -31,9 +31,10 @@ This directory contains the configuration schema for the Git-Actions tool, which
    - Reference to specific webhooks by name
    - Centralized rule evaluation
 
-4. **Variable Templating (TODO)**:
+4. **Variable Templating**:
    - Access to event data and environment variables
-   - Template interpolation in commands, URLs, and payloads
+   - Template interpolation in HTTP action URLs, headers, and bodies
+   - Uses Tera templating engine for powerful template features
 
 ## Configuration Files
 
@@ -137,7 +138,49 @@ For detailed information about all configuration options, refer to `schema.md` w
 
 ## Variable Substitution
 
+Git-Actions uses the [Tera](https://tera.netlify.app/) templating engine for variable substitution in HTTP actions.
+
+### Basic Syntax
+
 - Variable substitution uses double curly braces: `{{ variable }}`
 - Event data is accessed with the `event` prefix: `{{ event.branch }}`
-- Original payload data is available at `{{ event.payload }}`
+- Event type is available as `{{ event.type }}`
+- Changed files are available as `{{ event.changed_files }}`
 - Environment variables are accessed with the `env` prefix: `{{ env.MY_VAR }}`
+
+### Supported Fields in HTTP Actions
+
+The following fields in HTTP actions support templating:
+
+- `url`: The URL to call
+- `method`: The HTTP method
+- `headers`: Values in the headers map
+- `body`: The HTTP request body
+
+### Example
+
+```yaml
+actions:
+  - http:
+      url: "https://ci-server/api/build"
+      method: "POST"
+      headers:
+        Content-Type: "application/json"
+        Authorization: "Bearer {{ env.CI_API_TOKEN }}"
+      body: |
+        {
+          "repository": "{{ event.payload.repository.name }}",
+          "branch": "{{ event.branch }}",
+          "files": {{ event.changed_files | json_encode() }}
+        }
+```
+
+### Advanced Features
+
+Tera provides many advanced templating features including:
+
+- Filters: `{{ value | filter }}`
+- Conditionals: `{% if condition %}...{% endif %}`
+- Loops: `{% for item in items %}...{% endfor %}`
+
+For more information, see the [Tera documentation](https://tera.netlify.app/docs/).
