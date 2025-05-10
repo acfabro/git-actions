@@ -24,7 +24,10 @@ impl Bitbucket<'_> {
     pub async fn extract_branch(&self) -> Result<Branch> {
         self.payload["pullRequest"]["fromRef"]["displayId"]
             .as_str()
-            .map_or_else(|| Err(anyhow!("Missing branch from payload")), |s| Ok(s.to_string()))
+            .map_or_else(
+                || Err(anyhow!("Missing branch from payload")),
+                |s| Ok(s.to_string()),
+            )
     }
 
     pub async fn extract_changed_files(&self) -> Result<Vec<Path>> {

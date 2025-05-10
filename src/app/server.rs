@@ -4,9 +4,9 @@ use tokio::net::TcpListener;
 use tokio::signal;
 use tracing::info;
 
-use super::AppState;
-use super::router;
 use super::config::{Config, ServerConfig};
+use super::router;
+use super::AppState;
 
 /// HTTP server for Git-Actions
 pub struct Server {
@@ -16,11 +16,11 @@ pub struct Server {
 
 impl Server {
     /// Create a new HTTP server with the given configuration
-    pub fn new(
-        server_config: ServerConfig,
-        app_config: Config,
-    ) -> Self {
-        Self { server_config, app_config }
+    pub fn new(server_config: ServerConfig, app_config: Config) -> Self {
+        Self {
+            server_config,
+            app_config,
+        }
     }
 
     /// Start the HTTP server

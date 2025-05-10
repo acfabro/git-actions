@@ -2,11 +2,11 @@ use super::{Rule, RulesConfig, WebhookConfig};
 use anyhow::Result;
 use anyhow::{bail, Context};
 use glob::glob;
+use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
 pub enum ConfigType {

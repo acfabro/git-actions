@@ -55,10 +55,7 @@ pub async fn handler(
     let handler = create_bitbucket_handler(payload, webhook_config.to_owned(), webhook_rules)?;
 
     // run the webhook handler
-    let actions = handler
-        .run()
-        .await
-        .map_err(|e| Handler(e.to_string()))?;
+    let actions = handler.run().await.map_err(|e| Handler(e.to_string()))?;
     debug!("Handler actions: {:?}", actions);
 
     // Extract the event for template rendering
