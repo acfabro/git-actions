@@ -7,7 +7,7 @@ on:
 jobs:
   build_and_test:
     name: Build, Lint and Test
-    runs-on: ["self-hosted"]
+    runs-on: ["self-hosted", "ubuntu-latest"]
     timeout-minutes: 10
     steps:
       - name: Checkout code
