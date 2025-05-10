@@ -1,6 +1,6 @@
 pub mod bitbucket;
-pub mod types;
 pub mod rule_evaluator;
+pub mod types;
 
 pub(crate) mod handler;
 pub(crate) use handler::handler;

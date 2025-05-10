@@ -24,8 +24,10 @@ impl Bitbucket<'_> {
     pub async fn extract_branch(&self) -> Result<Branch> {
         self.payload["pullRequest"]["fromRef"]["displayId"]
             .as_str()
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow!("Missing branch from payload"))
+            .map_or_else(
+                || Err(anyhow!("Missing branch from payload")),
+                |s| Ok(s.to_string()),
+            )
     }
 
     pub async fn extract_changed_files(&self) -> Result<Vec<Path>> {
@@ -35,7 +37,7 @@ impl Bitbucket<'_> {
             &env::var(&self.config.api.auth.token_from_env).unwrap_or_default();
 
         // create bitbucket api client
-        let client = bitbucket_server_rs::new(&bitbucket_api, &bitbucket_api_token);
+        let client = bitbucket_server_rs::new(bitbucket_api, bitbucket_api_token);
 
         // call the api
         let response = client
@@ -61,8 +63,8 @@ impl Bitbucket<'_> {
         let changed_files = match pr_changes.values {
             None => bail!("No changed files found".to_string()),
             Some(c) => c
-                .into_iter()
-                .filter_map(|change| Some(change.path.to_string))
+                .iter()
+                .map(|change| change.path.to_string.clone())
                 .collect::<Vec<Path>>(),
         };
 
@@ -135,7 +137,7 @@ mod tests {
         let bitbucket = create_test_bitbucket(payload);
 
         let event_type = bitbucket.extract_event_type().await;
-        assert_eq!(event_type.unwrap(), EventType::PRModified);
+        assert_eq!(event_type.unwrap(), EventType::Modified);
     }
 
     #[tokio::test]
@@ -147,7 +149,7 @@ mod tests {
         let bitbucket = create_test_bitbucket(payload);
 
         let event_type = bitbucket.extract_event_type().await;
-        assert_eq!(event_type.unwrap(), EventType::PROpened);
+        assert_eq!(event_type.unwrap(), EventType::Opened);
     }
 
     #[tokio::test]
@@ -159,7 +161,7 @@ mod tests {
         let bitbucket = create_test_bitbucket(payload);
 
         let event_type = bitbucket.extract_event_type().await;
-        assert_eq!(event_type.unwrap(), EventType::PRMerged);
+        assert_eq!(event_type.unwrap(), EventType::Merged);
     }
 
     #[tokio::test]
