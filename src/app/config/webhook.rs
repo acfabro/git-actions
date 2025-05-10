@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::app::config::types::ConfigKind;
 use super::{ApiVersion, Metadata};
-
+use crate::app::config::types::ConfigKind;
 
 /// Webhook configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,22 +92,28 @@ spec:
 "#;
 
         let config: WebhookConfig = serde_yaml::from_str(yaml).unwrap();
-        
+
         // Verify the config
         assert_eq!(config.api_version, "v1");
         assert!(matches!(config.kind, ConfigKind::Webhook));
         assert_eq!(config.metadata.name, "test-webhook");
         assert_eq!(config.spec.path, "/webhook/bitbucket");
-        
+
         // Check bitbucket config
         let bitbucket = config.spec.bitbucket.unwrap();
-        assert_eq!(bitbucket.token_from_env, Some("BITBUCKET_WEBHOOK_TOKEN".to_string()));
-        
+        assert_eq!(
+            bitbucket.token_from_env,
+            Some("BITBUCKET_WEBHOOK_TOKEN".to_string())
+        );
+
         // Check API config
-        assert_eq!(bitbucket.api.base_url, "https://bitbucket.example.com/rest/api/1.0");
+        assert_eq!(
+            bitbucket.api.base_url,
+            "https://bitbucket.example.com/rest/api/1.0"
+        );
         assert_eq!(bitbucket.api.project, "PROJECT");
         assert_eq!(bitbucket.api.repo, "repo-name");
-        
+
         // Check auth config
         assert_eq!(bitbucket.api.auth.auth_type, "token");
         assert_eq!(bitbucket.api.auth.token_from_env, "BITBUCKET_API_TOKEN");
@@ -134,13 +139,13 @@ spec:
 "#;
 
         let config: WebhookConfig = serde_yaml::from_str(yaml).unwrap();
-        
+
         // Verify the config
         assert_eq!(config.api_version, "v1");
         assert!(matches!(config.kind, ConfigKind::Webhook));
         assert_eq!(config.metadata.name, "minimal-webhook");
         assert_eq!(config.spec.path, "/webhook/simple");
-        
+
         // Check bitbucket config
         let bitbucket = config.spec.bitbucket.unwrap();
         assert_eq!(bitbucket.token_from_env, None);
@@ -159,7 +164,7 @@ spec:
 "#;
 
         let result: Result<WebhookConfig, _> = serde_yaml::from_str(yaml);
-        
+
         // This should not fail because bitbucket is optional
         assert!(result.is_ok());
         let config = result.unwrap();

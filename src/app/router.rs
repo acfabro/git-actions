@@ -10,14 +10,10 @@ pub fn create_router() -> Router<Arc<AppState>> {
     Router::new()
         // health check endpoint
         .route("/health", get(handlers::health_check))
-
         // metrics endpoint
         .route("/metrics", get(handlers::metrics))
-
         // webhook endpoint
         .route("/webhook/{*path}", post(webhooks::handler))
-
         // add tracing layer for logging
         .layer(TraceLayer::new_for_http())
-
 }

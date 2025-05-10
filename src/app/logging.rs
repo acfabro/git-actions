@@ -18,12 +18,11 @@ pub fn setup(config: &Option<LoggingSpec>) -> Result<()> {
         .to_lowercase();
 
     // Set up the subscriber
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&level_str));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&level_str));
 
     // Configure the subscriber based on the format
-    let subscriber = fmt::Subscriber::builder()
-        .with_env_filter(env_filter);
+    let subscriber = fmt::Subscriber::builder().with_env_filter(env_filter);
 
     // Log to stdout
     if format_str == "json" {
@@ -33,6 +32,9 @@ pub fn setup(config: &Option<LoggingSpec>) -> Result<()> {
         tracing::subscriber::set_global_default(subscriber.finish())?;
     }
 
-    info!("Logging initialized with level: {}, format: {}", level_str, format_str);
+    info!(
+        "Logging initialized with level: {}, format: {}",
+        level_str, format_str
+    );
     Ok(())
 }

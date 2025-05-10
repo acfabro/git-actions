@@ -16,7 +16,7 @@ pub trait WebhookTypeHandler: Send + Sync {
     /// Run the webhook handler
     async fn run(&self) -> Result<Vec<&Action>>;
 
-    ///
+    // Default value for EventType
     fn evaluate_rules<'a>(event: &Event, rules: &HashMap<String, &'a Rule>) -> Vec<&'a Action> {
         let mut actions: Vec<&Action> = Vec::new();
         // This is where you would handle the webhook payload and apply rules
@@ -52,13 +52,13 @@ pub type Path = String;
 pub enum EventType {
     #[strum(serialize = "pr_created")]
     #[serde(rename = "pr_created")]
-    PROpened,
+    Opened,
     #[strum(serialize = "pr_modified")]
     #[serde(rename = "pr_modified")]
-    PRModified,
+    Modified,
     #[strum(serialize = "pr_merged")]
     #[serde(rename = "pr_merged")]
-    PRMerged,
+    Merged,
     // TODO add more event types as needed
 }
 
@@ -67,9 +67,9 @@ impl TryFrom<&str> for EventType {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "pr:opened" => Ok(EventType::PROpened),
-            "pr:modified" => Ok(EventType::PRModified),
-            "pr:merged" => Ok(EventType::PRMerged),
+            "pr:opened" => Ok(EventType::Opened),
+            "pr:modified" => Ok(EventType::Modified),
+            "pr:merged" => Ok(EventType::Merged),
             _ => Err(anyhow!("Invalid event type: {}", value)),
         }
     }

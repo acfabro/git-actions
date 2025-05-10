@@ -311,8 +311,7 @@ async fn run_webhook_handler_test_case(case: WebhookHandlerTestCase) {
 
         // Use HashSet for order-independent comparison
         use std::collections::HashSet;
-        let expected_urls_set: HashSet<&str> =
-            case.expected_action_urls.iter().cloned().collect();
+        let expected_urls_set: HashSet<&str> = case.expected_action_urls.iter().cloned().collect();
         let actual_urls_set: HashSet<&str> = actual_urls.iter().cloned().collect();
 
         assert_eq!(
@@ -344,7 +343,8 @@ async fn test_webhook_handler_rules_match() {
                     http: Some(HttpAction {
                         method: "POST".to_string(),
                         url: "https://example.com/webhook".to_string(),
-                        headers: None, body: None,
+                        headers: None,
+                        body: None,
                     }),
                     shell: None,
                 }],
@@ -376,7 +376,8 @@ async fn test_webhook_handler_no_rules_match() {
                     http: Some(HttpAction {
                         method: "POST".to_string(),
                         url: "https://example.com/webhook".to_string(),
-                        headers: None, body: None,
+                        headers: None,
+                        body: None,
                     }),
                     shell: None,
                 }],
@@ -408,7 +409,8 @@ async fn test_webhook_handler_event_type_filtering() {
                     http: Some(HttpAction {
                         method: "POST".to_string(),
                         url: "https://example.com/webhook".to_string(),
-                        headers: None, body: None,
+                        headers: None,
+                        body: None,
                     }),
                     shell: None,
                 }],
@@ -441,7 +443,8 @@ async fn test_webhook_handler_multiple_rules() {
                         http: Some(HttpAction {
                             method: "POST".to_string(),
                             url: "https://example.com/webhook1".to_string(),
-                            headers: None, body: None,
+                            headers: None,
+                            body: None,
                         }),
                         shell: None,
                     }],
@@ -461,7 +464,8 @@ async fn test_webhook_handler_multiple_rules() {
                         http: Some(HttpAction {
                             method: "POST".to_string(),
                             url: "https://example.com/webhook2".to_string(),
-                            headers: None, body: None,
+                            headers: None,
+                            body: None,
                         }),
                         shell: None,
                     }],
@@ -481,7 +485,8 @@ async fn test_webhook_handler_multiple_rules() {
                         http: Some(HttpAction {
                             method: "POST".to_string(),
                             url: "https://example.com/webhook3".to_string(),
-                            headers: None, body: None,
+                            headers: None,
+                            body: None,
                         }),
                         shell: None,
                     }],
@@ -490,7 +495,10 @@ async fn test_webhook_handler_multiple_rules() {
         ],
         payload: create_pr_opened_payload(),
         expected_actions_count: 2,
-        expected_action_urls: vec!["https://example.com/webhook1", "https://example.com/webhook2"],
+        expected_action_urls: vec![
+            "https://example.com/webhook1",
+            "https://example.com/webhook2",
+        ],
     };
     run_webhook_handler_test_case(case).await;
 }
@@ -514,7 +522,8 @@ async fn test_webhook_handler_rule_without_event_type() {
                     http: Some(HttpAction {
                         method: "POST".to_string(),
                         url: "https://example.com/any_event".to_string(),
-                        headers: None, body: None,
+                        headers: None,
+                        body: None,
                     }),
                     shell: None,
                 }],
@@ -546,7 +555,8 @@ async fn test_webhook_handler_rule_without_branch() {
                     http: Some(HttpAction {
                         method: "POST".to_string(),
                         url: "https://example.com/any_branch".to_string(),
-                        headers: None, body: None,
+                        headers: None,
+                        body: None,
                     }),
                     shell: None,
                 }],
@@ -576,7 +586,8 @@ async fn test_webhook_handler_rule_without_path() {
                     http: Some(HttpAction {
                         method: "POST".to_string(),
                         url: "https://example.com/any_path".to_string(),
-                        headers: None, body: None,
+                        headers: None,
+                        body: None,
                     }),
                     shell: None,
                 }],
