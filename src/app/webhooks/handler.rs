@@ -7,7 +7,7 @@ use crate::app::{
     webhooks::bitbucket::Bitbucket,
     webhooks::types::{Event, WebhookTypeHandler},
     AppState, Error,
-    Error::HandlerError,
+    Error::Handler,
 };
 use axum::{
     extract::{Path, State},
@@ -47,7 +47,7 @@ pub async fn handler(
         debug!(
             "Handler rule: {}, Description: {}",
             rule_name,
-            rule.description.to_owned().unwrap_or("".to_string())
+            rule.description.as_deref().unwrap_or("").to_string()
         );
     }
 
@@ -58,14 +58,14 @@ pub async fn handler(
     let actions = handler
         .run()
         .await
-        .map_err(|e| HandlerError(e.to_string()))?;
+        .map_err(|e| Handler(e.to_string()))?;
     debug!("Handler actions: {:?}", actions);
 
     // Extract the event for template rendering
     let event = handler
         .extract_event()
         .await
-        .map_err(|e| HandlerError(e.to_string()))?;
+        .map_err(|e| Handler(e.to_string()))?;
 
     // exec the actions with the event for template context
     exec_actions(actions, &event).await?;
@@ -76,8 +76,7 @@ pub async fn handler(
         Json(json!({
             "message": format!("Webhook processed: {}", &webhook_config.metadata.name),
         })),
-    )
-        .into_response())
+    ))
 }
 
 fn create_bitbucket_handler(
@@ -86,7 +85,7 @@ fn create_bitbucket_handler(
     webhook_rules: HashMap<String, &Rule>,
 ) -> Result<Bitbucket, Error> {
     let bitbucket_config = webhook_config.spec.bitbucket.as_ref().ok_or_else(|| {
-        Error::WebhookConfigError(format!(
+        Error::WebhookConfig(format!(
             "Bitbucket config is missing for webhook: {}",
             webhook_config.metadata.name
         ))
@@ -95,7 +94,7 @@ fn create_bitbucket_handler(
     // Instantiate the webhook handler
     let handler = Bitbucket {
         config: bitbucket_config.to_owned(),
-        rules: webhook_rules.to_owned(),
+        rules: webhook_rules,
         payload,
     };
     Ok(handler)
@@ -130,17 +129,17 @@ async fn exec_http_action(action: &HttpAction, context: &Context) -> Result<(), 
 
     // Render templates in method and url
     let method = template::render_template(&action.method, context)
-        .map_err(|e| Error::ActionError(format!("Failed to render method template: {}", e)))?;
+        .map_err(|e| Error::Action(format!("Failed to render method template: {}", e)))?;
 
     let url = template::render_template(&action.url, context)
-        .map_err(|e| Error::ActionError(format!("Failed to render URL template: {}", e)))?;
+        .map_err(|e| Error::Action(format!("Failed to render URL template: {}", e)))?;
 
     // set request method
     let mut client = match method.to_uppercase().as_str() {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
         _ => {
-            return Err(Error::ActionError(format!(
+            return Err(Error::Action(format!(
                 "Unsupported HTTP method: {}",
                 method
             )))
@@ -158,7 +157,7 @@ async fn exec_http_action(action: &HttpAction, context: &Context) -> Result<(), 
     // body with template rendering
     if let Some(body) = &action.body {
         let rendered_body = template::render_template(body, context)
-            .map_err(|e| Error::ActionError(format!("Failed to render body template: {}", e)));
+            .map_err(|e| Error::Action(format!("Failed to render body template: {}", e)));
 
         client = client.body(rendered_body?);
     }
@@ -167,7 +166,7 @@ async fn exec_http_action(action: &HttpAction, context: &Context) -> Result<(), 
     let response = client
         .send()
         .await
-        .map_err(|e| Error::ActionError(e.to_string()))?;
+        .map_err(|e| Error::Action(e.to_string()))?;
 
     debug!("Action status: {}", response.status());
 

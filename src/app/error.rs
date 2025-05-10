@@ -6,15 +6,15 @@ use serde_json::json;
 #[derive(Debug)]
 pub enum Error {
     /// Invalid webhook configuration
-    WebhookConfigError(String),
+    WebhookConfig(String),
     /// Webhook config not found given a path
     WebhookNotFoundForPath(String),
     /// No rule found attached to the webhook
     RulesNotFoundForWebhook(String),
     /// Error in the webhook handler
-    HandlerError(String),
+    Handler(String),
     /// Error performing the action
-    ActionError(String),
+    Action(String),
 }
 
 impl IntoResponse for Error {
@@ -28,15 +28,15 @@ impl IntoResponse for Error {
                 axum::http::StatusCode::NOT_FOUND,
                 format!("rules not found for webhook: {webhook_name}"),
             ),
-            Error::ActionError(message) => (
+            Error::Action(message) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("action error: {message}"),
             ),
-            Error::WebhookConfigError(message) => (
+            Error::WebhookConfig(message) => (
                 axum::http::StatusCode::BAD_REQUEST,
                 format!("webhook configuration error: {message}"),
             ),
-            Error::HandlerError(message) => (
+            Error::Handler(message) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("handler error: {message}"),
             ),

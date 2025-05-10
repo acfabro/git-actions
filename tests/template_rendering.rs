@@ -8,7 +8,7 @@ use tera::Context;
 fn test_template_rendering_in_http_action() {
     // Create a test event
     let event = Event {
-        event_type: EventType::PROpened,
+        event_type: EventType::Opened,
         branch: "feature/test-branch".to_string(),
         changed_files: vec!["src/main.rs".to_string(), "Cargo.toml".to_string()],
     };

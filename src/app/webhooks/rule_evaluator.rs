@@ -77,7 +77,7 @@ fn check_branch(event_branch: &Branch, rule_branches: &Option<Vec<BranchFilter>>
                 }
             }
             BranchFilter::Pattern { pattern } => {
-                let result = WildMatch::new(&pattern).matches(&event_branch);
+                let result = WildMatch::new(pattern).matches(event_branch);
                 if result {
                     debug!("Branch matches wildcard: {}", pattern);
                     return true;
@@ -85,14 +85,14 @@ fn check_branch(event_branch: &Branch, rule_branches: &Option<Vec<BranchFilter>>
             }
             BranchFilter::Regex { regex } => {
                 // TODO implement config validation for regex
-                let regex = match Regex::new(&regex) {
+                let regex = match Regex::new(regex) {
                     Ok(regex) => regex,
                     Err(e) => {
                         error!("Invalid regex: {}", e);
                         continue;
                     }
                 };
-                if regex.is_match(&event_branch) {
+                if regex.is_match(event_branch) {
                     debug!("Branch matches regex: {}", regex);
                     return true;
                 }
@@ -130,7 +130,7 @@ fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilt
                             continue;
                         }
                     };
-                    let result = pattern.matches(&event_path);
+                    let result = pattern.matches(event_path);
                     if result {
                         debug!("Path matches wildcard: {}", pattern);
                         return true;
@@ -138,14 +138,14 @@ fn check_changed_files(event_paths: &Vec<Path>, rule_paths: &Option<Vec<PathFilt
                 }
                 PathFilter::Regex { regex } => {
                     // TODO implement config validation for regex
-                    let regex = match Regex::new(&regex) {
+                    let regex = match Regex::new(regex) {
                         Ok(regex) => regex,
                         Err(e) => {
                             error!("Invalid regex: {}", e);
                             continue;
                         }
                     };
-                    if regex.is_match(&event_path) {
+                    if regex.is_match(event_path) {
                         debug!("Path matches regex: {}", regex);
                         return true;
                     }
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn test_check_event_type_match() {
         // Setup
-        let event_type = EventType::PROpened;
+        let event_type = EventType::Opened;
         let rule_event_types = Some(vec!["pr_created".to_string()]);
         
         // Execute
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn test_check_event_type_no_match() {
         // Setup
-        let event_type = EventType::PROpened;
+        let event_type = EventType::Opened;
         let rule_event_types = Some(vec!["pr_modified".to_string()]);
         
         // Execute
@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn test_check_event_type_empty_rules_should_pass() {
         // Setup
-        let event_type = EventType::PROpened;
+        let event_type = EventType::Opened;
         let rule_event_types = Some(vec![]);
         
         // Execute
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_check_event_type_none_rules_should_pass() {
         // Setup
-        let event_type = EventType::PROpened;
+        let event_type = EventType::Opened;
         let rule_event_types = None;
         
         // Execute
@@ -365,7 +365,7 @@ mod tests {
     fn test_check_complete_rule_match() {
         // Setup
         let event = Event {
-            event_type: EventType::PROpened,
+            event_type: EventType::Opened,
             branch: "feature/new-feature".to_string(),
             changed_files: vec!["src/main.rs".to_string()]
         };
@@ -390,7 +390,7 @@ mod tests {
     fn test_check_complete_rule_no_match_event_type() {
         // Setup
         let event = Event {
-            event_type: EventType::PRModified,
+            event_type: EventType::Modified,
             branch: "feature/new-feature".to_string(),
             changed_files: vec!["src/main.rs".to_string()]
         };
@@ -415,7 +415,7 @@ mod tests {
     fn test_check_complete_rule_no_match_branch() {
         // Setup
         let event = Event {
-            event_type: EventType::PROpened,
+            event_type: EventType::Opened,
             branch: "main".to_string(),
             changed_files: vec!["src/main.rs".to_string()]
         };
@@ -440,7 +440,7 @@ mod tests {
     fn test_check_complete_rule_no_match_path() {
         // Setup
         let event = Event {
-            event_type: EventType::PROpened,
+            event_type: EventType::Opened,
             branch: "feature/new-feature".to_string(),
             changed_files: vec!["docs/README.md".to_string()]
         };

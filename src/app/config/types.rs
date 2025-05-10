@@ -20,6 +20,12 @@ pub struct Config {
     pub configs: Vec<ConfigType>,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Config {
     /// Create a new Config instance
     pub fn new() -> Self {
@@ -33,7 +39,7 @@ impl Config {
         // Load all configs
         for pattern in path {
             // for each pattern handle glob patterns
-            let paths = glob(&pattern)
+            let paths = glob(pattern)
                 .with_context(|| format!("Failed to resolve glob pattern: {}", pattern))?;
 
             for path in paths {
@@ -46,7 +52,7 @@ impl Config {
     }
 
     fn load_path_config(path: &PathBuf) -> Result<ConfigType> {
-        let content = fs::read_to_string(&path)
+        let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
         let content =

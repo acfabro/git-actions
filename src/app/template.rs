@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn test_build_template_context() {
         let event = Event {
-            event_type: EventType::PROpened,
+            event_type: EventType::Opened,
             branch: "feature/test".to_string(),
             changed_files: vec!["src/main.rs".to_string(), "Cargo.toml".to_string()],
         };
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn test_build_template_context_with_env() {
         let event = Event {
-            event_type: EventType::PROpened,
+            event_type: EventType::Opened,
             branch: "feature/test".to_string(),
             changed_files: vec!["src/main.rs".to_string()],
         };
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn test_http_action_template() {
         let event = Event {
-            event_type: EventType::PROpened,
+            event_type: EventType::Opened,
             branch: "feature/test".to_string(),
             changed_files: vec!["src/main.rs".to_string()],
         };
