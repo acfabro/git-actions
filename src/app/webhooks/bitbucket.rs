@@ -21,13 +21,16 @@ impl Bitbucket<'_> {
         }
     }
 
-    pub async fn extract_branch(&self) -> Result<Branch> {
-        self.payload["pullRequest"]["fromRef"]["displayId"]
-            .as_str()
-            .map_or_else(
-                || Err(anyhow!("Missing branch from payload")),
-                |s| Ok(s.to_string()),
-            )
+    pub async fn extract_branch(&self, event_type: &EventType) -> Result<Branch> {
+        let branch_ref = match event_type {
+            EventType::Merged => &self.payload["pullRequest"]["toRef"]["displayId"],
+            _ => &self.payload["pullRequest"]["fromRef"]["displayId"],
+        };
+
+        branch_ref.as_str().map_or_else(
+            || Err(anyhow!("Missing branch from payload")),
+            |s| Ok(s.to_string()),
+        )
     }
 
     pub async fn extract_changed_files(&self) -> Result<Vec<Path>> {
@@ -75,9 +78,9 @@ impl Bitbucket<'_> {
 #[async_trait]
 impl WebhookTypeHandler for Bitbucket<'_> {
     async fn extract_event(&self) -> Result<Event> {
-        let branch = self.extract_branch().await?;
-        let changed_files = self.extract_changed_files().await?;
         let event_type = self.extract_event_type().await?;
+        let branch = self.extract_branch(&event_type).await?;
+        let changed_files = self.extract_changed_files().await?;
 
         //
         Ok(Event {
@@ -194,14 +197,22 @@ mod tests {
             "pullRequest": {
                 "fromRef": {
                     "displayId": "feature/test-branch"
+                },
+                "toRef": {
+                    "displayId": "main"
                 }
             }
         });
 
         let bitbucket = create_test_bitbucket(payload);
 
-        let branch = bitbucket.extract_branch().await;
+        // Test non-merge event uses fromRef
+        let branch = bitbucket.extract_branch(&EventType::Opened).await;
         assert_eq!(branch.unwrap(), "feature/test-branch");
+
+        // Test merge event uses toRef
+        let branch = bitbucket.extract_branch(&EventType::Merged).await;
+        assert_eq!(branch.unwrap(), "main");
     }
 
     #[tokio::test]
@@ -214,7 +225,7 @@ mod tests {
 
         let bitbucket = create_test_bitbucket(payload);
 
-        let branch = bitbucket.extract_branch().await;
+        let branch = bitbucket.extract_branch(&EventType::Opened).await;
         assert!(branch.is_err());
     }
 
@@ -232,14 +243,29 @@ mod tests {
                             "key": "GOLF"
                         }
                     }
+                },
+                "toRef": {
+                    "displayId": "main",
+                    "id": "refs/heads/main",
+                    "repository": {
+                        "slug": "sre-infra",
+                        "project": {
+                            "key": "GOLF"
+                        }
+                    }
                 }
             }
         });
 
         let bitbucket = create_test_bitbucket(payload);
 
-        let branch = bitbucket.extract_branch().await;
+        // Test non-merge event
+        let branch = bitbucket.extract_branch(&EventType::Modified).await;
         assert_eq!(branch.unwrap(), "feature/test-push-branch-no-pr");
+
+        // Test merge event
+        let branch = bitbucket.extract_branch(&EventType::Merged).await;
+        assert_eq!(branch.unwrap(), "main");
     }
 
     #[tokio::test]
@@ -262,7 +288,7 @@ mod tests {
         let event_type_result = bitbucket.extract_event_type().await;
         assert!(event_type_result.is_err());
 
-        let branch_result = bitbucket.extract_branch().await;
+        let branch_result = bitbucket.extract_branch(&EventType::Opened).await;
         assert!(branch_result.is_err());
     }
 }
